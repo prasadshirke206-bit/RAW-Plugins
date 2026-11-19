@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RAW Stream Candidate",
+  "type": "object",
+  "required": ["name", "title", "url", "quality", "type", "provider"],
+  "properties": {
+    "name": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+    "quality": {
+      "enum": ["2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p", "Auto"]
+    },
+    "type": {"enum": ["m3u8", "mpd", "mp4", "mkv"]},
+    "provider": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "language": {"type": "string"},
+    "headers": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "subtitles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["url", "lang"],
+        "properties": {
+          "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+          "lang": {"type": "string"},
+          "format": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
