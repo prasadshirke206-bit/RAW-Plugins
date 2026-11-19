@@ -24,9 +24,18 @@ test("provider IDs are unique and files exist", () => {
   }
 });
 
-test("template is disabled and anime is outside initial scope", () => {
-  assert.equal(manifest.providers[0].enabled, false);
+test("template and imported providers are disabled pending validation", () => {
+  const expectedImportedIds = [
+    "bingr", "movy", "4khdhub", "hdhub4u", "bollyflix",
+    "cinevood", "freekz", "net77", "uhdmovies", "vegamovies"
+  ];
+  const imported = manifest.providers.filter((provider) => provider.id !== "raw-provider-template");
+
+  assert.equal(manifest.providers.find((provider) => provider.id === "raw-provider-template").enabled, false);
+  assert.deepEqual(imported.map((provider) => provider.id).sort(), expectedImportedIds.sort());
+
   for (const provider of manifest.providers) {
+    assert.equal(provider.enabled, false);
     assert.ok(!provider.supportedTypes.includes("anime"));
   }
 });
