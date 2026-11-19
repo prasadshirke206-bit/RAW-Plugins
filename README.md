@@ -18,6 +18,16 @@ RAW-Plugins/
 │   └── stream-candidate.schema.json
 ├── providers/
 │   ├── README.md
+│   ├── bingr.js
+│   ├── movy.js
+│   ├── 4khdhub.js
+│   ├── hdhub4u.js
+│   ├── bollyflix.js
+│   ├── cinevood.js
+│   ├── freekz.js
+│   ├── net77.js
+│   ├── uhdmovies.js
+│   ├── vegamovies.js
 │   └── provider-template.js
 ├── docs/
 │   └── PROVIDER_PLUGIN_CREATION_GUIDE.md
@@ -39,7 +49,11 @@ A returned URL is not proof of successful playback. RAW must verify MPV startup 
 
 ## Catalogue status
 
-The initial manifest contains a disabled template only. It is not a production provider. Real providers will be added after QuickJS contract tests and Android playback validation.
+The manifest registers ten movie/TV provider scripts plus the disabled starter template. All ten imported provider entries are **disabled** by default. Registration does not mean a provider is production-ready: each must pass provenance/permission review, QuickJS runtime tests, candidate-schema validation, exact media-identity checks, and real Android MPV playback tests before it is enabled.
+
+Anime is intentionally excluded from this catalogue and remains on RAW's separate AniNexus pipeline.
+
+The provider metadata retains upstream attribution. A public repository URL is not, by itself, a reuse licence; confirm redistribution and modification rights before publishing these scripts for public installation.
 
 ## Security and provenance
 
