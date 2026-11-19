@@ -1,7 +1,7 @@
 {
   "name": "RAW-Plugins",
   "id": "raw-plugins",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "manifestVersion": 1,
   "description": "Official streaming provider plugins for RAW.",
   "app": {
@@ -27,16 +27,301 @@
       "description": "Disabled starter template. Not a production streaming provider.",
       "version": "0.1.0",
       "author": "RAW",
-      "supportedTypes": ["movie", "tv"],
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
       "filename": "providers/provider-template.js",
       "enabled": false,
       "hasSettings": false,
-      "formats": ["m3u8", "mpd", "mp4", "mkv"],
+      "formats": [
+        "m3u8",
+        "mpd",
+        "mp4",
+        "mkv"
+      ],
       "contentLanguage": [],
       "permissions": {
         "network": [],
         "storage": false
       }
+    },
+    {
+      "id": "bingr",
+      "name": "Bingr",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.3.1",
+      "author": "Secondary Agent",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/bingr.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4"
+      ],
+      "contentLanguage": [
+        "en",
+        "ja",
+        "hi",
+        "multi"
+      ]
+    },
+    {
+      "id": "movy",
+      "name": "Movy",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.3.1",
+      "author": "Secondary Agent",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/movy.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4"
+      ],
+      "contentLanguage": [
+        "en",
+        "de",
+        "fr",
+        "es",
+        "hi",
+        "ja"
+      ]
+    },
+    {
+      "id": "4khdhub",
+      "name": "4KHDHub",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.4.3",
+      "author": "Secondary Agent",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/4khdhub.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "mp4",
+        "mkv",
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "en",
+        "hi",
+        "ta",
+        "te",
+        "ko",
+        "multi"
+      ]
+    },
+    {
+      "id": "hdhub4u",
+      "name": "HDHub4u",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.0.2",
+      "author": "Antigravity Team",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/hdhub4u.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "mp4",
+        "mkv",
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "hi",
+        "en",
+        "ta",
+        "te",
+        "ml",
+        "kn",
+        "multi"
+      ]
+    },
+    {
+      "id": "bollyflix",
+      "name": "Bollyflix",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.2.6",
+      "author": "Secondary Agent",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/bollyflix.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "mp4",
+        "mkv",
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "hi",
+        "en",
+        "ta",
+        "te",
+        "ml",
+        "kn",
+        "multi"
+      ]
+    },
+    {
+      "id": "cinevood",
+      "name": "Cinevood",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.2.4",
+      "author": "Secondary Agent",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/cinevood.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "mp4",
+        "mkv",
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "hi",
+        "en",
+        "ta",
+        "te",
+        "ml",
+        "kn",
+        "mr",
+        "bn",
+        "multi"
+      ]
+    },
+    {
+      "id": "freekz",
+      "name": "Freekz",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "2.2.3",
+      "author": "Euthopiar Core Team",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/freekz.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "mp4",
+        "m3u8",
+        "mpd"
+      ],
+      "contentLanguage": [
+        "en",
+        "hi",
+        "es",
+        "fr",
+        "pt",
+        "ru",
+        "ar",
+        "bn",
+        "tl",
+        "multi"
+      ]
+    },
+    {
+      "id": "net77",
+      "name": "NetMirror (Net77)",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.0.1",
+      "author": "Secondary Agent",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/net77.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "en",
+        "hi",
+        "ta",
+        "te",
+        "es",
+        "fr",
+        "de",
+        "ja",
+        "multi"
+      ]
+    },
+    {
+      "id": "uhdmovies",
+      "name": "UHDMovies",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.1.2",
+      "author": "Secondary Agent",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/uhdmovies.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "mp4",
+        "mkv",
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "en",
+        "hi",
+        "ta",
+        "te",
+        "multi"
+      ]
+    },
+    {
+      "id": "vegamovies",
+      "name": "VegaMovies",
+      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "version": "1.2.4",
+      "author": "Secondary Agent",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/vegamovies.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [
+        "mp4",
+        "mkv",
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "hi",
+        "en",
+        "ta",
+        "te",
+        "ml",
+        "kn",
+        "ko",
+        "multi"
+      ]
     }
   ]
 }
