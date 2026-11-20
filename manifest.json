@@ -1,7 +1,7 @@
 {
   "name": "RAW-Plugins",
   "id": "raw-plugins",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "manifestVersion": 1,
   "description": "Official streaming provider plugins for RAW.",
   "app": {
@@ -57,7 +57,7 @@
         "tv"
       ],
       "filename": "providers/bingr.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "m3u8",
@@ -81,7 +81,7 @@
         "tv"
       ],
       "filename": "providers/movy.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "m3u8",
@@ -107,7 +107,7 @@
         "tv"
       ],
       "filename": "providers/4khdhub.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "mp4",
@@ -134,7 +134,7 @@
         "tv"
       ],
       "filename": "providers/hdhub4u.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "mp4",
@@ -162,7 +162,7 @@
         "tv"
       ],
       "filename": "providers/bollyflix.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "mp4",
@@ -190,7 +190,7 @@
         "tv"
       ],
       "filename": "providers/cinevood.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "mp4",
@@ -220,7 +220,7 @@
         "tv"
       ],
       "filename": "providers/freekz.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "mp4",
@@ -251,7 +251,7 @@
         "tv"
       ],
       "filename": "providers/net77.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "m3u8"
@@ -279,7 +279,7 @@
         "tv"
       ],
       "filename": "providers/uhdmovies.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "mp4",
@@ -305,7 +305,7 @@
         "tv"
       ],
       "filename": "providers/vegamovies.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "mp4",
