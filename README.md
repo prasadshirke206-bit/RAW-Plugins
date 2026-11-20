@@ -49,11 +49,11 @@ A returned URL is not proof of successful playback. RAW must verify MPV startup 
 
 ## Catalogue status
 
-The manifest registers ten movie/TV provider scripts plus the disabled starter template. The ten imported providers are enabled for RAW's plugin runtime. Enabling a script makes it eligible for execution; it does **not** certify that every source, audio track, subtitle or rendition will resolve successfully on every network or device.
+The manifest registers ten movie/TV provider scripts plus the disabled starter template. Eight movie/TV providers are enabled for RAW's plugin runtime. HDHub4u and NetMirror/Net77 remain disabled because their current scripts contain Cloudflare Turnstile/reCAPTCHA challenge-bypass behavior. They must be revised to use permitted, non-challenge source discovery before activation.
 
-RAW executes each manifest entry as an individual provider so health, progress, failure tracking and failover retain the provider ID. Anime is intentionally excluded from this catalogue and remains on RAW's separate AniNexus pipeline.
+Enabling a script makes it eligible for execution; it does **not** certify that every source, audio track, subtitle or rendition will resolve successfully on every network or device. RAW executes each enabled manifest entry as an individual provider so health, progress, failure tracking and failover retain the provider ID.
 
-RAW validates the media identity and stream metadata before sending a candidate to its existing MPV player. Actual Android MPV validation is still required before describing any provider as production-verified.
+Anime is intentionally excluded from this catalogue and remains on RAW's separate AniNexus pipeline. RAW validates media identity and stream metadata before sending a candidate to its existing MPV player. Actual Android MPV validation is still required before describing any provider as production-verified.
 
 The provider scripts retain their upstream attribution. Confirm the rights and licence needed to redistribute and modify each upstream script before public distribution.
 
