@@ -12,6 +12,6 @@ Provider files must:
 - avoid fabricated quality, language and subtitle claims;
 - stop work when the host cancels the playback request.
 
-All ten imported movie/TV provider entries are currently disabled in the repository manifest. Do not enable a provider until it passes the RAW QuickJS contract tests, candidate-schema validation, media-identity checks, and on-device MPV playback tests.
+All ten imported movie/TV provider entries are enabled in the current manifest and are loaded as individual providers by RAW. Enabling a script only makes it eligible for execution; each returned candidate still passes the host's media-identity and stream validation gates. Actual Android MPV playback must be verified independently.
 
 The template is disabled and deliberately returns no streams. It is not a playable provider.
