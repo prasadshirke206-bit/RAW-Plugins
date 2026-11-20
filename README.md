@@ -49,11 +49,13 @@ A returned URL is not proof of successful playback. RAW must verify MPV startup 
 
 ## Catalogue status
 
-The manifest registers ten movie/TV provider scripts plus the disabled starter template. All ten imported provider entries are **disabled** by default. Registration does not mean a provider is production-ready: each must pass provenance/permission review, QuickJS runtime tests, candidate-schema validation, exact media-identity checks, and real Android MPV playback tests before it is enabled.
+The manifest registers ten movie/TV provider scripts plus the disabled starter template. The ten imported providers are enabled for RAW's plugin runtime. Enabling a script makes it eligible for execution; it does **not** certify that every source, audio track, subtitle or rendition will resolve successfully on every network or device.
 
-Anime is intentionally excluded from this catalogue and remains on RAW's separate AniNexus pipeline.
+RAW executes each manifest entry as an individual provider so health, progress, failure tracking and failover retain the provider ID. Anime is intentionally excluded from this catalogue and remains on RAW's separate AniNexus pipeline.
 
-The provider metadata retains upstream attribution. A public repository URL is not, by itself, a reuse licence; confirm redistribution and modification rights before publishing these scripts for public installation.
+RAW validates the media identity and stream metadata before sending a candidate to its existing MPV player. Actual Android MPV validation is still required before describing any provider as production-verified.
+
+The provider scripts retain their upstream attribution. Confirm the rights and licence needed to redistribute and modify each upstream script before public distribution.
 
 ## Security and provenance
 
