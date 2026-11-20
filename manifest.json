@@ -1,7 +1,7 @@
 {
   "name": "RAW-Plugins",
   "id": "raw-plugins",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "manifestVersion": 1,
   "description": "Official streaming provider plugins for RAW.",
   "app": {
@@ -134,7 +134,7 @@
         "tv"
       ],
       "filename": "providers/hdhub4u.js",
-      "enabled": true,
+      "enabled": false,
       "hasSettings": false,
       "formats": [
         "mp4",
@@ -251,7 +251,7 @@
         "tv"
       ],
       "filename": "providers/net77.js",
-      "enabled": true,
+      "enabled": false,
       "hasSettings": false,
       "formats": [
         "m3u8"
