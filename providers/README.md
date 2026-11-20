@@ -12,6 +12,8 @@ Provider files must:
 - avoid fabricated quality, language and subtitle claims;
 - stop work when the host cancels the playback request.
 
-All ten imported movie/TV provider entries are enabled in the current manifest and are loaded as individual providers by RAW. Enabling a script only makes it eligible for execution; each returned candidate still passes the host's media-identity and stream validation gates. Actual Android MPV playback must be verified independently.
+Eight imported movie/TV provider entries are enabled in the current manifest and are loaded as individual providers by RAW. HDHub4u and NetMirror/Net77 remain disabled because their current scripts contain challenge-bypass behavior. Do not enable them until those paths have been removed or replaced with permitted source discovery.
+
+Enabling a script only makes it eligible for execution; each returned candidate still passes the host's media-identity and stream validation gates. Actual Android MPV playback must be verified independently.
 
 The template is disabled and deliberately returns no streams. It is not a playable provider.
