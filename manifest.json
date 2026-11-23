@@ -226,7 +226,7 @@
         "tv"
       ],
       "filename": "providers/net77.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "m3u8"
