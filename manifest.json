@@ -1,7 +1,7 @@
 {
   "name": "RAW-Plugins",
   "id": "raw-plugins",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "manifestVersion": 1,
   "description": "Official streaming provider plugins for RAW.",
   "app": {
@@ -21,31 +21,6 @@
     "requestContext": "globalThis.__CALL_ARGS__"
   },
   "providers": [
-    {
-      "id": "raw-provider-template",
-      "name": "RAW Provider Template",
-      "description": "Disabled starter template. Not a production streaming provider.",
-      "version": "0.1.0",
-      "author": "RAW",
-      "supportedTypes": [
-        "movie",
-        "tv"
-      ],
-      "filename": "providers/provider-template.js",
-      "enabled": false,
-      "hasSettings": false,
-      "formats": [
-        "m3u8",
-        "mpd",
-        "mp4",
-        "mkv"
-      ],
-      "contentLanguage": [],
-      "permissions": {
-        "network": [],
-        "storage": false
-      }
-    },
     {
       "id": "bingr",
       "name": "Bingr",
@@ -126,7 +101,7 @@
     {
       "id": "hdhub4u",
       "name": "HDHub4u",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "HDHub4u provider enabled for RAW extension-based movie and TV resolution.",
       "version": "1.0.2",
       "author": "Antigravity Team",
       "supportedTypes": [
@@ -134,7 +109,7 @@
         "tv"
       ],
       "filename": "providers/hdhub4u.js",
-      "enabled": false,
+      "enabled": true,
       "hasSettings": false,
       "formats": [
         "mp4",
@@ -243,7 +218,7 @@
     {
       "id": "net77",
       "name": "NetMirror (Net77)",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Pending a host-owned NetMirror verification/session handoff. The current script attempts a synthetic reCAPTCHA response and must not be enabled until replaced with a legitimate user-completed verification flow.",
       "version": "1.0.1",
       "author": "Secondary Agent",
       "supportedTypes": [
