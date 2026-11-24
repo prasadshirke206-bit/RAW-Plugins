@@ -15,7 +15,11 @@ async function koFetch(url, options, ms) { var res = await koTimeout(fetch(url, 
 async function koJson(url, options, ms) { return await (await koFetch(url, options, ms)).json(); }
 function koNorm(s) { var x = String(s || "").toLowerCase(); if (x.normalize) x = x.normalize("NFKC"); return x.replace(/[^a-z0-9]+/g, " ").trim(); }
 function koText(html) { return String(html || "").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim(); }
-function koAttr(tag, name) { var re = new RegExp("(?:^|\\s)" + name + "\\s*=\\s*(?:\\"([^\\"]*)\\"|'([^']*)'|([^\\s>]+))", "i"); var m = String(tag || "").match(re); return m ? (m[1] || m[2] || m[3] || "") : ""; }
+function koAttr(tag, name) {
+  var re = new RegExp(name + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))", "i");
+  var m = String(tag || "").match(re);
+  return m ? (m[1] || m[2] || m[3] || "") : "";
+}
 async function koAniList(id, context) {
   var supplied = [].concat(context.title || [], context.titles || [], context.aliases || []);
   if (supplied.length) return { id: String(id), idMal: context.idMal || context.malId || 0, titles: supplied.map(function (x) { return typeof x === "string" ? x : (x && (x.english || x.romaji || x.native)) || ""; }).filter(Boolean) };
