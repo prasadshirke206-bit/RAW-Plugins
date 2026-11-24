@@ -1,0 +1,224 @@
+/*
+ * AllAnime — RAW QuickJS anime provider
+ * Ported from RAW-Plugins' original AllAnime Kotlin source.
+ * Requires the QuickJS host fetch bridge and WebCrypto AES-GCM support for
+ * encrypted episode payloads. No stream is fabricated if decryption fails.
+ */
+var ALLANIME_ID = "allanime";
+var ALLANIME_SITE = "https://allmanga.to";
+var ALLANIME_API = "https://api.allanime.day";
+var ALLANIME_IFRAME = "https://blog.allanime.day";
+var ALLANIME_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+  "Accept": "application/json, text/plain, */*",
+  "Origin": ALLANIME_SITE,
+  "Referer": ALLANIME_SITE + "/"
+};
+var ALLANIME_XOR_KEYS = ["allanimenews", "1234567890123456789", "1234567890123456789012345", "s5feqxw21", "feqx1"];
+var ALLANIME_XOR_MASKS = ALLANIME_XOR_KEYS.map(function (s) {
+  var n = 0; for (var i = 0; i < s.length; i++) n ^= s.charCodeAt(i); return n;
+});
+var ALLANIME_INTERNAL_HOSTS = ["Default", "Ac", "Ak", "Kir", "Rab", "Luf-mp4", "Si-Hls", "S-mp4", "Ac-Hls", "Uv-mp4", "Pn-Hls"];
+var ALLANIME_STREAM_HASH = "d405d0edd690624b66baba3068e0edc3ac90f1597d898a1ec8db4e5c43c00fec";
+function aaContext() { return (typeof globalThis !== "undefined" && globalThis.__CALL_ARGS__) || {}; }
+function aaTimeout(p, ms, label) {
+  var timer;
+  return Promise.race([p, new Promise(function (_, reject) { timer = setTimeout(function () { reject(new Error(label || "request timeout")); }, ms || 10000); })])
+    .then(function (v) { clearTimeout(timer); return v; }, function (e) { clearTimeout(timer); throw e; });
+}
+async function aaFetch(url, options, timeoutMs) {
+  var response = await aaTimeout(fetch(url, options || {}), timeoutMs || 10000, "AllAnime request timed out");
+  if (!response || !response.ok) throw new Error("AllAnime HTTP " + (response ? response.status : "network"));
+  return response;
+}
+async function aaJson(url, options, timeoutMs) { return await (await aaFetch(url, options, timeoutMs)).json(); }
+function aaB64Bytes(value) {
+  var raw = atob(String(value || "").replace(/-/g, "+").replace(/_/g, "/"));
+  var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+async function aaDecryptPayload(payload) {
+  if (!payload) return "";
+  if (typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined") throw new Error("QuickJS host WebCrypto AES-GCM is required for encrypted AllAnime responses");
+  var blob = aaB64Bytes(payload);
+  if (blob.length < 13) throw new Error("AllAnime encrypted payload is truncated");
+  var version = blob[0], iv = blob.slice(1, 13), ciphertext = blob.slice(13);
+  var keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("Xot36i3lK3:v" + version));
+  var key = await crypto.subtle.importKey("raw", keyHash, { name: "AES-GCM" }, false, ["decrypt"]);
+  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv, tagLength: 128 }, key, ciphertext));
+}
+function aaDecryptSource(value) {
+  var raw = String(value || ""), prefix = null;
+  if (raw.indexOf("--") === 0) { raw = raw.slice(2); prefix = 3; }
+  else if (raw.indexOf("#-") === 0) { raw = raw.slice(2); prefix = 2; }
+  else if (raw.indexOf("##") === 0) { raw = raw.slice(2); prefix = 1; }
+  else if (raw.indexOf("-#") === 0) { raw = raw.slice(2); prefix = 4; }
+  else if (raw.indexOf("#") === 0) { raw = raw.slice(1); prefix = 0; }
+  else return raw;
+  if (!/^(?:[0-9a-fA-F]{2})+$/.test(raw)) return value;
+  var bytes = [];
+  for (var i = 0; i < raw.length; i += 2) bytes.push(parseInt(raw.slice(i, i + 2), 16));
+  if (prefix === null) {
+    for (var m = 0; m < ALLANIME_XOR_MASKS.length; m++) {
+      var probe = "";
+      for (var j = 0; j < bytes.length; j++) probe += String.fromCharCode((bytes[j] ^ ALLANIME_XOR_MASKS[m]) & 255);
+      if (probe.indexOf("/clock") >= 0 || probe.indexOf("http") >= 0) return probe;
+    }
+    return value;
+  }
+  var out = "";
+  for (var k = 0; k < bytes.length; k++) out += String.fromCharCode((bytes[k] ^ ALLANIME_XOR_MASKS[prefix]) & 255);
+  return out;
+}
+function aaNormalizeTitle(value) {
+  var s = String(value || "");
+  if (s.normalize) s = s.normalize("NFKC");
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+async function aaAniListMeta(id, context) {
+  var supplied = [].concat(context.title || [], context.titles || [], context.aliases || []);
+  if (supplied.length) return { id: String(id), titles: supplied.map(function (x) { return typeof x === "string" ? x : (x && (x.english || x.romaji || x.native)) || ""; }).filter(Boolean), episodes: Number(context.totalEpisodes || context.episodes || 0), year: Number(context.year || context.seasonYear || 0), format: String(context.format || "") };
+  var query = "query ($id: Int) { Media(id: $id, type: ANIME) { id idMal episodes format seasonYear title { romaji english native userPreferred } synonyms } }";
+  var data = await aaJson("https://graphql.anilist.co", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ query: query, variables: { id: Number(id) } }) }, 12000);
+  var media = data && data.data && data.data.Media;
+  if (!media || String(media.id) !== String(id)) throw new Error("AniList identity lookup did not return requested anime");
+  return { id: String(media.id), titles: [media.title && media.title.english, media.title && media.title.romaji, media.title && media.title.native, media.title && media.title.userPreferred].concat(media.synonyms || []).filter(Boolean), episodes: media.episodes || 0, year: media.seasonYear || 0, format: media.format || "" };
+}
+function aaIdentityMatch(items, meta) {
+  var aliases = {};
+  (meta.titles || []).forEach(function (t) { aliases[aaNormalizeTitle(t)] = true; });
+  var matches = (items || []).filter(function (item) {
+    return [item.name, item.englishName, item.nativeName].some(function (n) { return !!aliases[aaNormalizeTitle(n)]; });
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+async function aaGraphql(body) {
+  return await aaJson(ALLANIME_API + "/api", { method: "POST", headers: Object.assign({}, ALLANIME_HEADERS, { "Content-Type": "application/json", "Accept": "*/*" }), body: JSON.stringify(body) }, 12000);
+}
+async function aaFindShow(meta, context) {
+  var mapped = context.providerMappings && context.providerMappings.allanime;
+  if (mapped) {
+    var mappedId = typeof mapped === "object" ? mapped.id : mapped;
+    if (mappedId) return { _id: String(mappedId), name: meta.titles[0] || "AniList anime" };
+  }
+  var query = "query ($search: SearchInput, $limit: Int, $page: Int, $translationType: VaildTranslationTypeEnumType, $countryOrigin: VaildCountryOriginEnumType) { shows(search: $search, limit: $limit, page: $page, translationType: $translationType, countryOrigin: $countryOrigin) { edges { _id name englishName nativeName thumbnail slugTime } } }";
+  for (var i = 0; i < meta.titles.length; i++) {
+    var result = await aaGraphql({ variables: { search: { query: meta.titles[i], allowAdult: false, allowUnknown: false }, limit: 26, page: 1, translationType: "sub", countryOrigin: "ALL" }, query: query });
+    var edges = result && result.data && result.data.shows && result.data.shows.edges || [];
+    var match = aaIdentityMatch(edges, meta);
+    if (match) return match;
+  }
+  return null;
+}
+function aaResolve(base, path) { try { return new URL(path, base).toString(); } catch (_) { return path; } }
+function aaQuality(height) {
+  var n = Number(height || 0);
+  if (n >= 2160) return "2160p"; if (n >= 1440) return "1440p"; if (n >= 1080) return "1080p";
+  if (n >= 720) return "720p"; if (n >= 480) return "480p"; if (n >= 360) return "360p"; if (n >= 240) return "240p"; if (n >= 144) return "144p";
+  return "Auto";
+}
+function aaCandidate(url, title, quality, type, lang, headers, subtitles) {
+  if (!url || !/^https:\/\//i.test(url)) return null;
+  return { name: "AllAnime | " + title, title: title, url: url, quality: quality || "Auto", type: type || "m3u8", provider: ALLANIME_ID, language: lang || undefined, headers: headers || ALLANIME_HEADERS, subtitles: subtitles || [] };
+}
+async function aaHls(url, title, lang, headers, subtitles) {
+  var body = await (await aaFetch(url, { headers: headers }, 10000)).text();
+  if (body.indexOf("#EXTM3U") < 0) return [];
+  if (body.indexOf("#EXT-X-MEDIA:TYPE=AUDIO") >= 0) {
+    var master = aaCandidate(url, title, "Auto", "m3u8", lang, headers, subtitles);
+    return master ? [master] : [];
+  }
+  var lines = body.split(/\r?\n/), out = [];
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].indexOf("#EXT-X-STREAM-INF:") !== 0) continue;
+    var height = (lines[i].match(/RESOLUTION=\d+x(\d+)/i) || [,""])[1], uri = "";
+    for (var j = i + 1; j < lines.length; j++) { var line = lines[j].trim(); if (line && line.charAt(0) !== "#") { uri = line; break; } }
+    if (!uri) continue;
+    var candidate = aaCandidate(aaResolve(url, uri), title, aaQuality(height), "m3u8", lang, headers, subtitles);
+    if (candidate) out.push(candidate);
+  }
+  if (!out.length) { var c = aaCandidate(url, title, "Auto", "m3u8", lang, headers, subtitles); if (c) out.push(c); }
+  return out;
+}
+async function aaDirectOrEmbed(url, label, lang, iframeEndpoint, subtitles) {
+  if (!url || !/^https?:\/\//i.test(url)) return [];
+  var clean = url.replace(/^\/\//, "https://");
+  if (/\.m3u8(?:$|[?#])/i.test(clean)) { try { return await aaHls(clean, label, lang, ALLANIME_HEADERS, subtitles); } catch (_) { return []; } }
+  if (/\.(mp4|mkv|mpd)(?:$|[?#])/i.test(clean)) {
+    var ext = (clean.match(/\.(mp4|mkv|mpd)(?:$|[?#])/i) || [,"mp4"])[1].toLowerCase();
+    var c = aaCandidate(clean, label, "Auto", ext, lang, ALLANIME_HEADERS, subtitles); return c ? [c] : [];
+  }
+  try {
+    var html = await (await aaFetch(clean, { headers: Object.assign({}, ALLANIME_HEADERS, { "Referer": iframeEndpoint + "/" }) }, 8500)).text();
+    var urls = html.match(/https?:\\?\/\\?\/[^"'\\\s<>]+?\.(?:m3u8|mp4|mpd)(?:\?[^"'\\\s<>]*)?/gi) || [], out = [];
+    for (var i = 0; i < urls.length; i++) {
+      var found = urls[i].replace(/\\\//g, "/").replace(/&amp;/g, "&");
+      var kind = (found.match(/\.(m3u8|mp4|mpd)/i) || [,"mp4"])[1].toLowerCase();
+      if (kind === "m3u8") out = out.concat(await aaHls(found, label, lang, ALLANIME_HEADERS, subtitles));
+      else { var c2 = aaCandidate(found, label, "Auto", kind, lang, ALLANIME_HEADERS, subtitles); if (c2) out.push(c2); }
+    }
+    return out;
+  } catch (_) { return []; }
+}
+async function aaInternal(rawPath, serverName, lang, iframeEndpoint) {
+  try {
+    var endpoint = iframeEndpoint.replace(/\/+$/, "");
+    var data = await aaJson(endpoint + rawPath.replace("/clock?", "/clock.json?"), { headers: Object.assign({}, ALLANIME_HEADERS, { "Referer": endpoint + "/" }) }, 10000);
+    var links = data && data.links || [], out = [];
+    for (var i = 0; i < links.length; i++) {
+      var link = links[i] || {};
+      var subs = (link.subtitles || []).map(function (s) { return s && s.src && /^https:\/\//i.test(s.src) ? { url: s.src, lang: s.label || s.lang || "Unknown" } : null; }).filter(Boolean);
+      if (link.mp4 && link.link) { var mp4 = aaCandidate(link.link, serverName, aaQuality(link.resolution), "mp4", lang, ALLANIME_HEADERS, subs); if (mp4) out.push(mp4); }
+      else if (link.hls && link.link) out = out.concat(await aaHls(link.link, serverName, lang, ALLANIME_HEADERS, subs));
+    }
+    return out;
+  } catch (_) { return []; }
+}
+async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
+  try {
+    var context = Object.assign({}, aaContext(), extraArgs || {});
+    if (mediaType !== "anime") return [];
+    var id = String(anilistId || context.anilistId || context.aniListId || "");
+    var ep = Number(episode || context.episodeNumber || context.episode || 0);
+    if (!/^\d+$/.test(id) || Number(id) <= 0 || !Number.isFinite(ep) || ep <= 0) return [];
+    var meta = await aaAniListMeta(id, context);
+    var show = await aaFindShow(meta, context);
+    if (!show || !show._id) return [];
+    var detail = await aaGraphql({ variables: { _id: String(show._id) }, query: "query ($_id: String!) { show(_id: $_id) { _id availableEpisodesDetail } }" });
+    var available = detail && detail.data && detail.data.show && detail.data.show.availableEpisodesDetail || {};
+    var audioOrder = String(context.preferredAudio || "sub").toLowerCase() === "dub" ? ["dub", "sub"] : ["sub", "dub"];
+    var languages = audioOrder.filter(function (lang) { return (available[lang] || []).some(function (n) { return String(n) === String(ep); }); });
+    if (!languages.length) return [];
+    var iframeEndpoint = ALLANIME_IFRAME;
+    try { var ver = await aaJson(ALLANIME_SITE + "/getVersion", { headers: ALLANIME_HEADERS }, 6000); if (ver && ver.episodeIframeHead) iframeEndpoint = ver.episodeIframeHead; } catch (_) {}
+    var out = [];
+    for (var a = 0; a < languages.length; a++) {
+      var lang = languages[a], variables = { showId: String(show._id), episodeString: String(ep), translationType: lang };
+      var extensions = { persistedQuery: { version: 1, sha256Hash: ALLANIME_STREAM_HASH } };
+      var url = ALLANIME_API + "/api?variables=" + encodeURIComponent(JSON.stringify(variables)) + "&extensions=" + encodeURIComponent(JSON.stringify(extensions));
+      var payload = await aaJson(url, { headers: Object.assign({}, ALLANIME_HEADERS, { "Origin": "https://youtu-chan.com", "Referer": "https://youtu-chan.com/" }) }, 12000);
+      var sources = payload && payload.data && payload.data.episode && payload.data.episode.sourceUrls;
+      var encrypted = payload && payload.data && payload.data.tobeparsed;
+      if (!sources && encrypted) {
+        var decrypted = JSON.parse(await aaDecryptPayload(encrypted));
+        sources = decrypted && decrypted.episode && decrypted.episode.sourceUrls;
+        if (!sources && decrypted && decrypted.data && decrypted.data.episode) sources = decrypted.data.episode.sourceUrls;
+      }
+      if (!Array.isArray(sources)) continue;
+      for (var s = 0; s < sources.length; s++) {
+        var item = sources[s] || {}, sourceUrl = aaDecryptSource(item.sourceUrl), name = String(item.sourceName || "AllAnime");
+        if (!sourceUrl) continue;
+        if (sourceUrl.indexOf("/apivtwo/") === 0 && ALLANIME_INTERNAL_HOSTS.some(function (h) { return name.toLowerCase().indexOf(h.toLowerCase()) >= 0; })) {
+          out = out.concat(await aaInternal(sourceUrl, name + " (" + lang + ")", lang, iframeEndpoint));
+        } else if (/^https?:\/\//i.test(sourceUrl)) {
+          out = out.concat(await aaDirectOrEmbed(sourceUrl, name + " (" + lang + ")", lang, iframeEndpoint, []));
+        }
+      }
+    }
+    var seen = {};
+    return out.filter(function (c) { if (!c || !c.url || seen[c.url]) return false; seen[c.url] = true; return true; }).map(function (c) { c.anilistId = id; c.episodeNumber = ep; return c; });
+  } catch (e) { console.log("[AllAnime] " + String(e && e.message || e)); return []; }
+}
+if (typeof globalThis !== "undefined") globalThis.getStreams = getStreams;
+if (typeof module !== "undefined" && module.exports) module.exports = { getStreams: getStreams };

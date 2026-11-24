@@ -1,3 +1,30 @@
-# Anime JavaScript providers
+# RAW QuickJS Anime Providers
 
-Reserved for future RAW-native QuickJS anime provider scripts. They must use the AniList identity and exact episode contract, return schema-validated candidates, and be registered in the root manifest only after runtime compatibility and playback validation. Native Kotlin upstream sources are organized separately under `anime/providers/`.
+Each script is an independent QuickJS provider referenced by the root `manifest.json`.
+
+## Contract
+
+```js
+getStreams(anilistId, "anime", season, episode)
+```
+
+The full host-supplied request context is available at `globalThis.__CALL_ARGS__`. Context may include the canonical title aliases, year, selected audio preference and validated provider-specific ID mappings.
+
+Returned candidates must:
+
+- include `name`, `title`, `url`, `quality`, `type` and `provider`;
+- include the exact `anilistId` and `episodeNumber`;
+- use HTTPS URLs;
+- use only actually observed resolution and subtitle information;
+- return an empty array when identity mapping or playback resolution is ambiguous or fails.
+
+The app must compare `anilistId` and `episodeNumber` against the active playback request before offering a candidate to MPV. It must not trust plugin-supplied metadata alone.
+
+## Providers
+
+- `allanime.js` — AllAnime GraphQL and internal player path.
+- `anikage.js` — Anikage API and Koto/Rai source path.
+- `anikoto.js` — Anikoto multisource AJAX, mapper and MegaPlay path.
+- `anilight.js` — AniLight API and public MegaPlay path.
+
+See `docs/RAW_APP_ANIME_RUNTIME_INTEGRATION.md` for the host requirements and known limitations.
