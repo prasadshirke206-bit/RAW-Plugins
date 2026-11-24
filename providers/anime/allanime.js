@@ -5,9 +5,9 @@
  * encrypted episode payloads. No stream is fabricated if decryption fails.
  */
 var ALLANIME_ID = "allanime";
-var ALLANIME_SITE = "https://allmanga.to";
-var ALLANIME_API = "https://api.allanime.day";
-var ALLANIME_IFRAME = "https://blog.allanime.day";
+var ALLANIME_SITE = "https://mkissa.to";
+var ALLANIME_API = "https://api.mkissa.net/api";
+var ALLANIME_IFRAME = "https://allanime.day";
 var ALLANIME_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
   "Accept": "application/json, text/plain, */*",
@@ -19,7 +19,7 @@ var ALLANIME_XOR_MASKS = ALLANIME_XOR_KEYS.map(function (s) {
   var n = 0; for (var i = 0; i < s.length; i++) n ^= s.charCodeAt(i); return n;
 });
 var ALLANIME_INTERNAL_HOSTS = ["Default", "Ac", "Ak", "Kir", "Rab", "Luf-mp4", "Si-Hls", "S-mp4", "Ac-Hls", "Uv-mp4", "Pn-Hls"];
-var ALLANIME_STREAM_HASH = "d405d0edd690624b66baba3068e0edc3ac90f1597d898a1ec8db4e5c43c00fec";
+var ALLANIME_STREAM_HASH = "f4662f4b7510b26795dd53ef824a0bf1740fbbc5d1273fab18222ac831bca8d0";
 function aaContext() { return (typeof globalThis !== "undefined" && globalThis.__CALL_ARGS__) || {}; }
 function aaTimeout(p, ms, label) {
   var timer;
@@ -33,44 +33,99 @@ async function aaFetch(url, options, timeoutMs) {
 }
 async function aaJson(url, options, timeoutMs) { return await (await aaFetch(url, options, timeoutMs)).json(); }
 function aaB64Bytes(value) {
-  var raw = atob(String(value || "").replace(/-/g, "+").replace(/_/g, "/"));
+  var normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/").replace(/\s/g, "");
+  normalized += "=".repeat((4 - normalized.length % 4) % 4);
+  var raw = atob(normalized);
   var out = new Uint8Array(raw.length);
   for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
 }
+var ALLANIME_KEY_CACHE = null;
+var ALLANIME_KEY_CACHE_EXPIRES = 0;
+function aaBase64(bytes) {
+  var binary = "";
+  for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+async function aaGetKeys() {
+  if (ALLANIME_KEY_CACHE && Date.now() < ALLANIME_KEY_CACHE_EXPIRES) return ALLANIME_KEY_CACHE;
+  if (typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined") throw new Error("QuickJS WebCrypto AES-GCM is required");
+  var page = await (await aaFetch(ALLANIME_SITE, { headers: ALLANIME_HEADERS }, 9000)).text();
+  var epochMatch = page.match(/"epoch"\s*:\s*(\d+)/);
+  var partBMatch = page.match(/"partB"\s*:\s*"([^"]+)"/);
+  var appUrlMatch = page.match(/https?:\/\/[^"' \t\r\n]+\/entry\/app\.[A-Za-z0-9_.-]+\.js/i);
+  if (!epochMatch || !partBMatch || !appUrlMatch) throw new Error("AllAnime epoch, partB or entry bundle was not found");
+  var appUrl = appUrlMatch[0];
+  var appBundle = await (await aaFetch(appUrl, { headers: ALLANIME_HEADERS }, 9000)).text();
+  var cdnRoot = appUrl.split("/entry/")[0];
+  var chunkRegex = /["']\.\.\/chunks\/([^"']+\.js)["']/g;
+  var chunkNames = [], chunkMatch;
+  while ((chunkMatch = chunkRegex.exec(appBundle)) !== null && chunkNames.length < 5) {
+    if (chunkNames.indexOf(chunkMatch[1]) < 0) chunkNames.push(chunkMatch[1]);
+  }
+  if (!chunkNames.length) throw new Error("AllAnime entry bundle did not expose key chunks");
+  var maskHex = "";
+  for (var i = 0; i < chunkNames.length && !maskHex; i++) {
+    try {
+      var chunk = await (await aaFetch(cdnRoot + "/chunks/" + chunkNames[i], { headers: ALLANIME_HEADERS }, 8000)).text();
+      var maskMatch = chunk.match(/[0-9a-f]{64}/i);
+      if (maskMatch) maskHex = maskMatch[0];
+    } catch (_) {}
+  }
+  if (!maskHex) throw new Error("AllAnime key mask was not found in its entry chunks");
+  var partB = aaB64Bytes(partBMatch[1]);
+  if (partB.length !== 32) throw new Error("AllAnime partB must decode to 32 bytes");
+  var mask = new Uint8Array(32), key = new Uint8Array(32);
+  for (var j = 0; j < 32; j++) mask[j] = parseInt(maskHex.slice(j * 2, j * 2 + 2), 16);
+  for (var k = 0; k < 32; k++) key[k] = mask[k] ^ partB[k];
+  ALLANIME_KEY_CACHE = { key: key, epoch: epochMatch[1] };
+  ALLANIME_KEY_CACHE_EXPIRES = Date.now() + 180000;
+  return ALLANIME_KEY_CACHE;
+}
+async function aaBuildRequestToken(keys) {
+  var timestamp = Math.floor(Date.now() / 300000) * 300000;
+  var payload = '{"v":1,"ts":' + timestamp + ',"epoch":' + keys.epoch + ',"qh":"' + ALLANIME_STREAM_HASH + '"}';
+  var ivHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(keys.epoch + ":" + ALLANIME_STREAM_HASH + ":" + timestamp));
+  var iv = new Uint8Array(ivHash).slice(0, 12);
+  var key = await crypto.subtle.importKey("raw", keys.key, { name: "AES-GCM" }, false, ["encrypt"]);
+  var sealed = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv, tagLength: 128 }, key, new TextEncoder().encode(payload)));
+  var token = new Uint8Array(1 + iv.length + sealed.length);
+  token[0] = 1; token.set(iv, 1); token.set(sealed, 1 + iv.length);
+  return aaBase64(token);
+}
 async function aaDecryptPayload(payload) {
   if (!payload) return "";
-  if (typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined") throw new Error("QuickJS host WebCrypto AES-GCM is required for encrypted AllAnime responses");
-  var blob = aaB64Bytes(payload);
-  if (blob.length < 13) throw new Error("AllAnime encrypted payload is truncated");
-  var version = blob[0], iv = blob.slice(1, 13), ciphertext = blob.slice(13);
-  var keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("Xot36i3lK3:v" + version));
-  var key = await crypto.subtle.importKey("raw", keyHash, { name: "AES-GCM" }, false, ["decrypt"]);
-  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv, tagLength: 128 }, key, ciphertext));
+  var keys = await aaGetKeys(), blob = aaB64Bytes(payload);
+  if (blob.length < 29 || blob[0] !== 1) throw new Error("AllAnime encrypted payload has invalid version or length");
+  var key = await crypto.subtle.importKey("raw", keys.key, { name: "AES-GCM" }, false, ["decrypt"]);
+  var plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: blob.slice(1, 13), tagLength: 128 }, key, blob.slice(13));
+  return new TextDecoder().decode(plaintext);
 }
-function aaDecryptSource(value) {
-  var raw = String(value || ""), prefix = null;
-  if (raw.indexOf("--") === 0) { raw = raw.slice(2); prefix = 3; }
-  else if (raw.indexOf("#-") === 0) { raw = raw.slice(2); prefix = 2; }
-  else if (raw.indexOf("##") === 0) { raw = raw.slice(2); prefix = 1; }
-  else if (raw.indexOf("-#") === 0) { raw = raw.slice(2); prefix = 4; }
-  else if (raw.indexOf("#") === 0) { raw = raw.slice(1); prefix = 0; }
-  else return raw;
-  if (!/^(?:[0-9a-fA-F]{2})+$/.test(raw)) return value;
-  var bytes = [];
-  for (var i = 0; i < raw.length; i += 2) bytes.push(parseInt(raw.slice(i, i + 2), 16));
-  if (prefix === null) {
-    for (var m = 0; m < ALLANIME_XOR_MASKS.length; m++) {
-      var probe = "";
-      for (var j = 0; j < bytes.length; j++) probe += String.fromCharCode((bytes[j] ^ ALLANIME_XOR_MASKS[m]) & 255);
-      if (probe.indexOf("/clock") >= 0 || probe.indexOf("http") >= 0) return probe;
-    }
-    return value;
+function aaDecodeSourceURL(value) {
+  var raw = String(value || "");
+  if (raw.indexOf("--") === 0) raw = raw.slice(2);
+  if (!/^(?:[0-9a-fA-F]{2})+$/.test(raw)) return String(value || "");
+  var substitutions = {
+    "79":"A","7a":"B","7b":"C","7c":"D","7d":"E","7e":"F","7f":"G",
+    "70":"H","71":"I","72":"J","73":"K","74":"L","75":"M","76":"N","77":"O",
+    "68":"P","69":"Q","6a":"R","6b":"S","6c":"T","6d":"U","6e":"V","6f":"W",
+    "60":"X","61":"Y","62":"Z","59":"a","5a":"b","5b":"c","5c":"d","5d":"e","5e":"f","5f":"g",
+    "50":"h","51":"i","52":"j","53":"k","54":"l","55":"m","56":"n","57":"o","48":"p","49":"q","4a":"r","4b":"s","4c":"t","4d":"u","4e":"v","4f":"w",
+    "40":"x","41":"y","42":"z","08":"0","09":"1","0a":"2","0b":"3","0c":"4","0d":"5","0e":"6","0f":"7","00":"8","01":"9",
+    "15":"-","16":".","67":"_","46":"~","02":":","17":"/","07":"?","1b":"#","63":"[","65":"]","78":"@","19":"!","1c":"$","1e":"&",
+    "10":"(","11":")","12":"*","13":"+","14":",","03":";","05":"=","1d":"%"
+  };
+  var decoded = "";
+  for (var i = 0; i < raw.length; i += 2) {
+    var pair = raw.slice(i, i + 2).toLowerCase();
+    decoded += Object.prototype.hasOwnProperty.call(substitutions, pair) ? substitutions[pair] : pair;
   }
-  var out = "";
-  for (var k = 0; k < bytes.length; k++) out += String.fromCharCode((bytes[k] ^ ALLANIME_XOR_MASKS[prefix]) & 255);
-  return out;
+  decoded = decoded.replace(/\/clock\b/g, "/clock.json");
+  if (decoded.charAt(0) === "/") return "https://allanime.day" + decoded;
+  return decoded;
 }
+function aaDecryptSource(value) { return aaDecodeSourceURL(value); }
+
 function aaNormalizeTitle(value) {
   var s = String(value || "");
   if (s.normalize) s = s.normalize("NFKC");
@@ -94,7 +149,7 @@ function aaIdentityMatch(items, meta) {
   return matches.length === 1 ? matches[0] : null;
 }
 async function aaGraphql(body) {
-  return await aaJson(ALLANIME_API + "/api", { method: "POST", headers: Object.assign({}, ALLANIME_HEADERS, { "Content-Type": "application/json", "Accept": "*/*" }), body: JSON.stringify(body) }, 12000);
+  return await aaJson(ALLANIME_API, { method: "POST", headers: Object.assign({}, ALLANIME_HEADERS, { "Content-Type": "application/json", "Accept": "*/*" }), body: JSON.stringify(body) }, 12000);
 }
 async function aaFindShow(meta, context) {
   var mapped = context.providerMappings && context.providerMappings.allanime;
@@ -191,13 +246,15 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var languages = audioOrder.filter(function (lang) { return (available[lang] || []).some(function (n) { return String(n) === String(ep); }); });
     if (!languages.length) return [];
     var iframeEndpoint = ALLANIME_IFRAME;
-    try { var ver = await aaJson(ALLANIME_SITE + "/getVersion", { headers: ALLANIME_HEADERS }, 6000); if (ver && ver.episodeIframeHead) iframeEndpoint = ver.episodeIframeHead; } catch (_) {}
+    try { var ver = await aaJson(ALLANIME_SITE + "/getVersion", { headers: ALLANIME_HEADERS }, 5000); if (ver && ver.episodeIframeHead) iframeEndpoint = ver.episodeIframeHead; } catch (_) {}
+    var keys = await aaGetKeys();
+    var aaReqToken = await aaBuildRequestToken(keys);
     var out = [];
     for (var a = 0; a < languages.length; a++) {
       var lang = languages[a], variables = { showId: String(show._id), episodeString: String(ep), translationType: lang };
-      var extensions = { persistedQuery: { version: 1, sha256Hash: ALLANIME_STREAM_HASH } };
-      var url = ALLANIME_API + "/api?variables=" + encodeURIComponent(JSON.stringify(variables)) + "&extensions=" + encodeURIComponent(JSON.stringify(extensions));
-      var payload = await aaJson(url, { headers: Object.assign({}, ALLANIME_HEADERS, { "Origin": "https://youtu-chan.com", "Referer": "https://youtu-chan.com/" }) }, 12000);
+      var extensions = { persistedQuery: { version: 1, sha256Hash: ALLANIME_STREAM_HASH }, aaReq: aaReqToken };
+      var url = ALLANIME_API + "?variables=" + encodeURIComponent(JSON.stringify(variables)) + "&extensions=" + encodeURIComponent(JSON.stringify(extensions));
+      var payload = await aaJson(url, { headers: Object.assign({}, ALLANIME_HEADERS, { "Origin": ALLANIME_SITE, "Referer": ALLANIME_SITE + "/" }) }, 12000);
       var sources = payload && payload.data && payload.data.episode && payload.data.episode.sourceUrls;
       var encrypted = payload && payload.data && payload.data.tobeparsed;
       if (!sources && encrypted) {
