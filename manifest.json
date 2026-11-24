@@ -31,7 +31,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/bingr.js",
+      "filename": "providers/movie-tv/bingr.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -55,7 +55,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/movy.js",
+      "filename": "providers/movie-tv/movy.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -81,7 +81,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/4khdhub.js",
+      "filename": "providers/movie-tv/4khdhub.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -108,7 +108,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/hdhub4u.js",
+      "filename": "providers/movie-tv/hdhub4u.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -136,7 +136,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/bollyflix.js",
+      "filename": "providers/movie-tv/bollyflix.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -164,7 +164,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/cinevood.js",
+      "filename": "providers/movie-tv/cinevood.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -194,7 +194,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/freekz.js",
+      "filename": "providers/movie-tv/freekz.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -225,7 +225,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/net77.js",
+      "filename": "providers/movie-tv/net77.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -253,7 +253,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/uhdmovies.js",
+      "filename": "providers/movie-tv/uhdmovies.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [
@@ -279,7 +279,7 @@
         "movie",
         "tv"
       ],
-      "filename": "providers/vegamovies.js",
+      "filename": "providers/movie-tv/vegamovies.js",
       "enabled": true,
       "hasSettings": false,
       "formats": [

@@ -1,64 +1,39 @@
 # RAW Plugins
 
-Official repository for independently versioned streaming-provider plugins for the RAW Android app.
+Official repository of independently versioned provider scripts and native source modules for the RAW Android app.
 
-**Initial scope:** Movies and TV series. Anime remains on RAW's existing AniNexus pipeline. Plugins return stream candidates; RAW validates them and hands the selected source to its existing libmpv/MPV playback engine.
+## Repository layout
+
+```text
+RAW-Plugins/
+├── providers/
+│   ├── movie-tv/       # QuickJS movie and TV provider scripts
+│   └── anime/          # Future QuickJS anime provider scripts
+├── anime/
+│   └── providers/
+│       ├── allanime/   # AllAnime upstream Kotlin source
+│       ├── anikage/    # Anikage upstream Kotlin source
+│       ├── anikoto/    # Anikoto upstream Kotlin source
+│       └── anilight/   # AniLight upstream Kotlin source
+├── extractors/         # Reusable native Kotlin hoster extractors
+├── libraries/          # Shared native helpers, scrapers and runtime support
+├── schemas/
+├── docs/
+└── tests/
+```
+
+## Runtime boundary
+
+The Kotlin source under `anime/providers/`, `extractors/` and `libraries/` is native Android source material. It is **not** automatically executable by RAW's QuickJS plugin runtime. A provider using these modules must be integrated into a compatible Android runtime/host adapter before it can be enabled in RAW.
+
+The existing `providers/movie-tv/` JavaScript providers use the repository's QuickJS contract and are listed in the root `manifest.json`. Anime QuickJS plugins will have a separate AniList/episode-aware contract; the native Kotlin anime sources remain organized separately until that adapter exists.
+
+RAW validates candidate media identity and stream metadata before handing a selected candidate to its existing MPV player. A returned URL alone does not prove successful playback.
 
 ## Manifest URL
 
 https://raw.githubusercontent.com/prasadshirke206-bit/RAW-Plugins/main/manifest.json
 
-## Layout
-
-```text
-RAW-Plugins/
-├── manifest.json
-├── schemas/
-│   ├── manifest.schema.json
-│   └── stream-candidate.schema.json
-├── providers/
-│   ├── README.md
-│   ├── bingr.js
-│   ├── movy.js
-│   ├── 4khdhub.js
-│   ├── hdhub4u.js
-│   ├── bollyflix.js
-│   ├── cinevood.js
-│   ├── freekz.js
-│   ├── net77.js
-│   ├── uhdmovies.js
-│   ├── vegamovies.js
-│   └── provider-template.js
-├── docs/
-│   └── PROVIDER_PLUGIN_CREATION_GUIDE.md
-├── tests/
-│   └── manifest.test.mjs
-└── package.json
-```
-
-## Provider lifecycle
-
-1. RAW fetches and validates the repository manifest.
-2. A provider is downloaded and checked against its manifest identity and version.
-3. RAW executes it in a QuickJS sandbox.
-4. The host calls `getStreams(tmdbId, mediaType, season, episode)` and injects full request context through `globalThis.__CALL_ARGS__`.
-5. The plugin returns stream candidates.
-6. RAW validates media identity, URL/host policy, headers and metadata before sending a selected candidate to MPV.
-
-A returned URL is not proof of successful playback. RAW must verify MPV startup and inspect actual video, audio and subtitle tracks.
-
-## Catalogue status
-
-The manifest registers ten movie/TV provider scripts plus the disabled starter template. Eight movie/TV providers are enabled for RAW's plugin runtime. HDHub4u and NetMirror/Net77 remain disabled because their current scripts contain Cloudflare Turnstile/reCAPTCHA challenge-bypass behavior. They must be revised to use permitted, non-challenge source discovery before activation.
-
-Enabling a script makes it eligible for execution; it does **not** certify that every source, audio track, subtitle or rendition will resolve successfully on every network or device. RAW executes each enabled manifest entry as an individual provider so health, progress, failure tracking and failover retain the provider ID.
-
-Anime is intentionally excluded from this catalogue and remains on RAW's separate AniNexus pipeline. RAW validates media identity and stream metadata before sending a candidate to its existing MPV player. Actual Android MPV validation is still required before describing any provider as production-verified.
-
-The provider scripts retain their upstream attribution. Confirm the rights and licence needed to redistribute and modify each upstream script before public distribution.
-
 ## Security and provenance
 
-Plugins are untrusted code. The Android runtime must enforce timeouts, cancellation, response-size limits, allowed URL schemes/hosts, request budgets and per-plugin isolation. Never expose app secrets, OAuth credentials, Supabase keys or signing material to provider scripts.
-
-Do not bypass CAPTCHA, authentication, DRM or other access controls. Each production provider must have documented provenance and permission/compatible licensing before publication.
+Treat provider code as untrusted. Enforce timeouts, cancellation, response-size limits, host allowlists, request budgets and per-provider isolation. Never expose app secrets or signing material. Do not bypass CAPTCHA, authentication, DRM or other access controls. Verify upstream attribution and redistribution licences before publishing source code.
