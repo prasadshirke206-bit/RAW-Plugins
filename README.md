@@ -39,6 +39,11 @@ Anime has a separate contract:
 
 The same QuickJS engine and fetch bridge are used. The host must route anime through the anime argument contract and must validate candidate identity against the exact selected AniList title and episode. Do not pass a TMDB ID to an anime provider.
 
+
+## Anime port parity and Kotlin-source removal gate
+
+The JS anime providers are still being brought to behavior parity with their original Kotlin implementations. See [`docs/ANIME_PROVIDER_PARITY_AUDIT.md`](docs/ANIME_PROVIDER_PARITY_AUDIT.md) for the provider-by-provider gaps and the conditions required before any Kotlin source is removed. The Kotlin sources remain reference material until those gates pass.
+
 ## Current anime conversion scope
 
 The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScript ports; nine remain explicitly disabled until their native-only or security-sensitive dependencies have a supported RAW host integration.
