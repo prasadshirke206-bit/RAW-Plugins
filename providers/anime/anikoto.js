@@ -155,6 +155,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var id = String(anilistId || context.anilistId || context.aniListId || ""), ep = Number(episode || context.episodeNumber || context.episode || 0);
     if (!/^\d+$/.test(id) || Number(id) <= 0 || !Number.isFinite(ep) || ep <= 0) return [];
     var meta = await koAniList(id, context), mapped = context.providerMappings && context.providerMappings.anikoto, animeUrl = "";
+    console.log("[Anikoto] resolve start AniList=" + id + " episode=" + ep + " aliases=" + meta.titles.length);
     if (mapped) { var mv = typeof mapped === "object" ? mapped.url || mapped.slug || "" : String(mapped); if (mv) animeUrl = /^https?:\/\//i.test(mv) ? mv : ANIKOTO_MIRRORS[0] + (mv.charAt(0) === "/" ? "" : "/") + mv; }
     var baseUsed = ANIKOTO_MIRRORS[0];
     if (!animeUrl) {
@@ -179,19 +180,20 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
         }
       }
     }
-    if (!animeUrl) return [];
+    if (!animeUrl) { console.log("[Anikoto] no unique exact-title watch page for AniList=" + id); return []; }
+    console.log("[Anikoto] matched watch page=" + animeUrl);
     var slug = animeUrl.replace(/\/+$/, "").split("/").pop();
     var detailHtml = await (await koFetch(animeUrl, { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": baseUsed + "/" }) }, 10000)).text();
     var siteId = (detailHtml.match(/data-id=["']([^"']+)["']/i) || detailHtml.match(/data-tip=["']([^"']+)["']/i) || [,""])[1];
-    if (!siteId) return [];
+    if (!siteId) { console.log("[Anikoto] matched page contains no media data-id"); return []; }
     var epResponse = await koJson(baseUsed + "/ajax/episode/list/" + encodeURIComponent(siteId) + "?vrf=", {
       headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": animeUrl, "X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*; q=0.01" })
     }, 10000);
     var epHtml = epResponse && epResponse.result || "", tags = epHtml.match(/<a\b[^>]*data-num=["'][^"']+["'][^>]*>/gi) || [], epTag = null;
     for (var e = 0; e < tags.length; e++) if (String(koAttr(tags[e], "data-num")) === String(ep)) { epTag = tags[e]; break; }
-    if (!epTag) return [];
+    if (!epTag) { console.log("[Anikoto] episode " + ep + " is absent from the matched catalogue"); return []; }
     var ids = koAttr(epTag, "data-ids"), malId = koAttr(epTag, "data-mal") || meta.idMal, mapperSlug = koAttr(epTag, "data-slug"), timestamp = koAttr(epTag, "data-timestamp");
-    if (!ids) return [];
+    if (!ids) { console.log("[Anikoto] episode " + ep + " has no server IDs"); return []; }
     var serverResult = await koJson(baseUsed + "/ajax/server/list?servers=" + encodeURIComponent(ids), {
       headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": animeUrl, "X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*; q=0.01" })
     }, 10000);
@@ -202,6 +204,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
       var lis = groups[g].match(/<li\b[^>]*data-link-id=["'][^"']+["'][^>]*>[\s\S]*?<\/li>/gi) || [];
       for (var l = 0; l < lis.length; l++) { var lt = lis[l].match(/^<li\b[^>]*>/i), serverId = lt ? koAttr(lt[0], "data-link-id") : ""; if (serverId) servers.push({ id: serverId, name: koText(lis[l]) || serverId, type: typeName }); }
     }
+    console.log("[Anikoto] matched episode " + ep + " servers=" + servers.length);
     var preferred = String(context.preferredAudio || "sub").toLowerCase();
     servers.sort(function (a, b) { return (a.type === preferred ? -1 : 0) - (b.type === preferred ? -1 : 0); });
     // Resolve independent server embeds concurrently; one slow mirror no longer
@@ -252,6 +255,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
       if (!item || !item.url || seen[item.url]) continue;
       seen[item.url] = true; final.push(item);
     }
+    console.log("[Anikoto] resolved " + final.length + " candidate(s) for AniList=" + id + " episode=" + ep);
     return final.map(function (c) { c.anilistId = id; c.episodeNumber = ep; return c; });
   } catch (e) { console.log("[Anikoto] " + String(e && e.message || e)); return []; }
 }
