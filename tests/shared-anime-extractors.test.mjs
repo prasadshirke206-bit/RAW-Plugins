@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { webcrypto, createCipheriv, createHash } from "node:crypto";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sharedPath = path.join(root, "providers/anime/shared/extractors.js");
@@ -40,7 +41,16 @@ function loadExtractors(fetchImpl) {
     Object,
     Array,
     RegExp,
-    Error
+    Error,
+    Uint8Array,
+    TextEncoder,
+    TextDecoder,
+    crypto: webcrypto,
+    atob,
+    btoa,
+    decodeURIComponent,
+    encodeURIComponent,
+    unescape
   };
   vm.runInNewContext(sharedSource, sandbox, { filename: sharedPath, timeout: 4000 });
   return sandbox.RAWAnimeExtractors;
@@ -218,4 +228,170 @@ test("shared extractors reject mismatched or incomplete anime identity before ne
   assert.deepEqual(Array.from(await extractors.streamtape("https://streamtape.com/v/a", options)), []);
   assert.deepEqual(Array.from(await extractors.vidmoly("https://vidmoly.biz/e/a", options)), []);
   assert.equal(requests, 0);
+});
+
+
+function abyssKeyForTest(seed) {
+  let cleaned = String(seed);
+  const firstDot = cleaned.indexOf(".");
+  if (firstDot !== -1) cleaned = cleaned.slice(0, firstDot) + cleaned.slice(firstDot + 1);
+  cleaned = cleaned.replace(/:/g, "").replace(/-/g, "");
+  const allDigits = cleaned.length > 0 && /^[0-9]+$/.test(cleaned);
+  const source = allDigits
+    ? Buffer.from(Array.from(String(seed), (ch) => /^[0-9]$/.test(ch) ? Number(ch) : ch.charCodeAt(0) & 255))
+    : Buffer.from(String(seed), "utf8");
+  return Buffer.from(createHash("md5").update(source).digest("hex"), "utf8");
+}
+
+function encryptAbyssForTest(plainText, seed) {
+  const key = abyssKeyForTest(seed);
+  const cipher = createCipheriv("aes-256-ctr", key, key.subarray(0, 16));
+  return Buffer.concat([cipher.update(Buffer.from(plainText, "utf8")), cipher.final()]);
+}
+
+function abyssDatasHtml(mediaPayload, metadata = {}) {
+  const seed = String(metadata.user_id || "42") + ":" + String(metadata.slug || "test-slug") + ":" + String(metadata.md5_id || "123");
+  const encrypted = encryptAbyssForTest(JSON.stringify(mediaPayload), seed);
+  const binaryJson = '{"slug":"' + (metadata.slug || "test-slug") +
+    '","md5_id":"' + (metadata.md5_id || "123") +
+    '","user_id":"' + (metadata.user_id || "42") +
+    '","media":"' + Array.from(encrypted, (byte) => "\\u" + byte.toString(16).padStart(4, "0")).join("") +
+    '","isDownload":false}';
+  return '<script>const datas = "' + Buffer.from(binaryJson, "latin1").toString("base64") + '";</script>';
+}
+
+test("Abyss decrypts the Kotlin MD5/AES-CTR datas payload and returns HLS, MP4 and subtitles", async () => {
+  const html = abyssDatasHtml({
+    hls: { file: "https://cdn.example/abyss/master.m3u8", label: "Main" },
+    mp4: {
+      sources: [{ label: "720p", size: "100", file: "https://cdn.example/abyss/video.mp4" }],
+      domains: []
+    },
+    subtitles: [{ src: "https://cdn.example/abyss/en.vtt", label: "English" }]
+  });
+  const calls = [];
+  const extractors = loadExtractors(async (url, options = {}) => {
+    const value = String(url);
+    calls.push({ url: value, options });
+    if (value === "https://abyssplayer.com/?v=epabc") return response(html, { url: value });
+    if (value === "https://cdn.example/abyss/master.m3u8") {
+      return response([
+        "#EXTM3U",
+        "#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720",
+        "720/index.m3u8"
+      ].join("\n"));
+    }
+    throw new Error("Unexpected Abyss request " + value);
+  });
+
+  const candidates = await extractors.abyss("https://short.icu/epabc", {
+    provider: "animesalt",
+    anilistId: "16498",
+    episodeNumber: 5,
+    language: "sub",
+    referer: "https://animesalt.me/"
+  });
+
+  assert.equal(calls[0].url, "https://abyssplayer.com/?v=epabc");
+  assert.equal(calls[0].options.headers.Referer, "https://animesalt.me/");
+  assert.equal(candidates.length, 2);
+  assert.equal(candidates[0].url, "https://cdn.example/abyss/720/index.m3u8");
+  assert.equal(candidates[0].quality, "720p");
+  assert.equal(candidates[0].type, "m3u8");
+  assert.equal(candidates[1].url, "https://cdn.example/abyss/video.mp4?ext=.mp4");
+  assert.equal(candidates[1].type, "mp4");
+  assert.ok(candidates.every((item) => item.provider === "animesalt"));
+  assert.ok(candidates.every((item) => item.anilistId === "16498" && item.episodeNumber === 5));
+  assert.ok(candidates.every((item) => item.subtitles.some((sub) => sub.url === "https://cdn.example/abyss/en.vtt" && sub.lang === "English")));
+});
+
+test("Abyss matches Kotlin numeric-seed Sora AES-CTR token construction", async () => {
+  const payload = {
+    mp4: {
+      domains: ["https://sora.example"],
+      sources: [{ label: "1080p", size: "12345", res_id: "res-1", sub: "sora.example" }]
+    }
+  };
+  const html = abyssDatasHtml(payload);
+  const extractors = loadExtractors(async (url) => {
+    if (String(url) === "https://abyssplayer.com/?v=episode") return response(html, { url: String(url) });
+    throw new Error("Unexpected request " + url);
+  });
+
+  const candidates = await extractors.abyss("https://abyssplayer.com/?v=episode", {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 9,
+    referer: "https://www.animostream.xyz/"
+  });
+
+  const key = abyssKeyForTest("12345");
+  const cipher = createCipheriv("aes-256-ctr", key, key.subarray(0, 16));
+  const pathValue = "/mp4/123/res-1/12345?v=test-slug";
+  const transformed = Buffer.concat([cipher.update(Buffer.from(pathValue, "utf8")), cipher.final()]);
+  const first = transformed.toString("base64").replace(/=+$/g, "");
+  const expectedToken = Buffer.from(first, "utf8").toString("base64").replace(/=+$/g, "");
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].url, "https://sora.example/sora/12345/" + expectedToken);
+  assert.equal(candidates[0].name, "Abyss - 1080p (Sora)");
+  assert.equal(candidates[0].type, "mp4");
+  assert.equal(candidates[0].anilistId, "21");
+  assert.equal(candidates[0].episodeNumber, 9);
+});
+
+test("Abyss rejects invalid anime identity before making requests", async () => {
+  let requests = 0;
+  const extractors = loadExtractors(async () => {
+    requests++;
+    throw new Error("Network should not be used");
+  });
+  assert.deepEqual(Array.from(await extractors.abyss("https://abyssplayer.com/?v=x", {
+    provider: "animestream",
+    anilistId: "0",
+    episodeNumber: 1
+  })), []);
+  assert.deepEqual(Array.from(await extractors.abyss("https://abyssplayer.com/?v=x", {
+    provider: "animestream",
+    anilistId: "21",
+    episodeNumber: 0
+  })), []);
+  assert.equal(requests, 0);
+});
+
+test("Abyss fails closed when encrypted media cannot be decrypted", async () => {
+  const raw = '{"slug":"wrong","md5_id":"123","user_id":"42","media":"not-valid-ciphertext"}';
+  const html = '<script>var datas = "' + Buffer.from(raw, "latin1").toString("base64") + '";</script>';
+  const extractors = loadExtractors(async (url) => {
+    if (String(url) === "https://abyssplayer.com/?v=x") return response(html, { url: String(url) });
+    throw new Error("Unexpected request " + url);
+  });
+  const candidates = await extractors.abyss("https://abyssplayer.com/?v=x", {
+    provider: "animestream",
+    anilistId: "21",
+    episodeNumber: 1
+  });
+  assert.deepEqual(Array.from(candidates), []);
+});
+
+test("Abyss legacy domain/id fallback remains available", async () => {
+  const html = '<script>var player = {"domain":"legacy.example","id":"stream123"};</script>';
+  const extractors = loadExtractors(async (url) => response(html, { url: String(url) }));
+  const candidates = await extractors.abyss("https://abyssplayer.com/?v=legacy", {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 1
+  });
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].url, "https://legacy.example/stream123");
+  assert.equal(candidates[0].name, "Abyss - Video");
+  assert.equal(candidates[0].headers.Referer, "https://abyssplayer.com/?v=legacy");
+});
+
+
+test("AnimeSalt and Animostream route recognized Abyss hosts into the shared runtime", () => {
+  const animostream = fs.readFileSync(path.join(root, "providers/anime/animostream.js"), "utf8");
+  const animesalt = fs.readFileSync(path.join(root, "providers/anime/animesalt.js"), "utf8");
+  assert.match(animostream, /ext\.abyss\(u,/);
+  assert.match(animesalt, /abyssShared\.abyss\(azAbs\(u,page\)/);
 });

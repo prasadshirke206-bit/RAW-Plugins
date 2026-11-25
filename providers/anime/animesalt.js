@@ -251,7 +251,491 @@
     }
   }
 
+
+  function utf8Bytes(value) {
+    var text = String(value == null ? "" : value);
+    if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(text);
+    var encoded = unescape(encodeURIComponent(text));
+    var out = new Uint8Array(encoded.length);
+    for (var i = 0; i < encoded.length; i++) out[i] = encoded.charCodeAt(i) & 255;
+    return out;
+  }
+
+  function bytesToLatin1(bytes) {
+    var out = "";
+    for (var i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i] & 255);
+    return out;
+  }
+
+  function bytesToUtf8(bytes) {
+    if (typeof TextDecoder !== "undefined") {
+      try { return new TextDecoder("utf-8").decode(bytes); } catch (_) {}
+    }
+    var binary = bytesToLatin1(bytes);
+    try {
+      return decodeURIComponent(binary.split("").map(function (ch) {
+        return "%" + ("0" + ch.charCodeAt(0).toString(16)).slice(-2);
+      }).join(""));
+    } catch (_) {
+      return binary;
+    }
+  }
+
+  function decodeBase64Bytes(value) {
+    var input = String(value || "").replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+    while (input.length % 4) input += "=";
+    if (typeof atob === "function") {
+      var binary = atob(input);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i) & 255;
+      return bytes;
+    }
+    var alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    var result = [];
+    var buffer = 0;
+    var bits = 0;
+    for (var j = 0; j < input.length; j++) {
+      var ch = input.charAt(j);
+      if (ch === "=") break;
+      var valueAt = alphabet.indexOf(ch);
+      if (valueAt < 0) continue;
+      buffer = (buffer << 6) | valueAt;
+      bits += 6;
+      if (bits >= 8) {
+        bits -= 8;
+        result.push((buffer >> bits) & 255);
+      }
+    }
+    return new Uint8Array(result);
+  }
+
+  function encodeBase64NoPadding(bytes) {
+    var binary = bytesToLatin1(bytes);
+    var encoded;
+    if (typeof btoa === "function") encoded = btoa(binary);
+    else {
+      var alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      encoded = "";
+      for (var i = 0; i < bytes.length; i += 3) {
+        var a = bytes[i] & 255;
+        var hasB = i + 1 < bytes.length;
+        var hasC = i + 2 < bytes.length;
+        var b = hasB ? bytes[i + 1] & 255 : 0;
+        var c = hasC ? bytes[i + 2] & 255 : 0;
+        encoded += alphabet.charAt(a >> 2);
+        encoded += alphabet.charAt(((a & 3) << 4) | (b >> 4));
+        encoded += hasB ? alphabet.charAt(((b & 15) << 2) | (c >> 6)) : "=";
+        encoded += hasC ? alphabet.charAt(c & 63) : "=";
+      }
+    }
+    return encoded.replace(/=+$/g, "");
+  }
+
+  function md5Bytes(input) {
+    var data = Array.prototype.slice.call(input);
+    var bitLength = input.length * 8;
+    data.push(128);
+    while (data.length % 64 !== 56) data.push(0);
+    var low = bitLength >>> 0;
+    var high = Math.floor(bitLength / 4294967296) >>> 0;
+    for (var n = 0; n < 4; n++) data.push((low >>> (n * 8)) & 255);
+    for (var m = 0; m < 4; m++) data.push((high >>> (m * 8)) & 255);
+
+    var shifts = [
+      7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+      5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+      4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+      6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21
+    ];
+    var constants = [];
+    for (var c = 0; c < 64; c++) constants[c] = Math.floor(Math.abs(Math.sin(c + 1)) * 4294967296) >>> 0;
+
+    var a0 = 0x67452301;
+    var b0 = 0xefcdab89;
+    var c0 = 0x98badcfe;
+    var d0 = 0x10325476;
+
+    for (var offset = 0; offset < data.length; offset += 64) {
+      var words = new Uint32Array(16);
+      for (var w = 0; w < 16; w++) {
+        var p = offset + w * 4;
+        words[w] = (data[p] | (data[p + 1] << 8) | (data[p + 2] << 16) | (data[p + 3] << 24)) >>> 0;
+      }
+      var a = a0, b = b0, c2 = c0, d = d0;
+      for (var i = 0; i < 64; i++) {
+        var f, g;
+        if (i < 16) {
+          f = (b & c2) | (~b & d);
+          g = i;
+        } else if (i < 32) {
+          f = (d & b) | (~d & c2);
+          g = (5 * i + 1) % 16;
+        } else if (i < 48) {
+          f = b ^ c2 ^ d;
+          g = (3 * i + 5) % 16;
+        } else {
+          f = c2 ^ (b | ~d);
+          g = (7 * i) % 16;
+        }
+        var sum = (a + f + constants[i] + words[g]) >>> 0;
+        var shift = shifts[i];
+        var rotated = ((sum << shift) | (sum >>> (32 - shift))) >>> 0;
+        var previousD = d;
+        d = c2;
+        c2 = b;
+        b = (b + rotated) >>> 0;
+        a = previousD;
+      }
+      a0 = (a0 + a) >>> 0;
+      b0 = (b0 + b) >>> 0;
+      c0 = (c0 + c2) >>> 0;
+      d0 = (d0 + d) >>> 0;
+    }
+
+    var digest = new Uint8Array(16);
+    var state = [a0, b0, c0, d0];
+    for (var s = 0; s < 4; s++) {
+      for (var j2 = 0; j2 < 4; j2++) digest[s * 4 + j2] = (state[s] >>> (j2 * 8)) & 255;
+    }
+    return digest;
+  }
+
+  function abyssKey(seed) {
+    var cleaned = String(seed);
+    var firstDot = cleaned.indexOf(".");
+    if (firstDot !== -1) cleaned = cleaned.substring(0, firstDot) + cleaned.substring(firstDot + 1);
+    cleaned = cleaned.replace(/:/g, "").replace(/-/g, "");
+    var allDigits = cleaned.length > 0 && /^[0-9]+$/.test(cleaned);
+    var source;
+    if (allDigits) {
+      source = new Uint8Array(String(seed).length);
+      for (var i = 0; i < String(seed).length; i++) {
+        var ch = String(seed).charAt(i);
+        source[i] = /^[0-9]$/.test(ch) ? Number(ch) : String(seed).charCodeAt(i) & 255;
+      }
+    } else {
+      source = utf8Bytes(seed);
+    }
+    var hash = md5Bytes(source);
+    var hex = "";
+    for (var j = 0; j < hash.length; j++) hex += ("0" + hash[j].toString(16)).slice(-2);
+    return utf8Bytes(hex);
+  }
+
+  async function abyssAesCtrTransform(dataBytes, keySeed) {
+    try {
+      if (!root.crypto || !root.crypto.subtle) return null;
+      var keyBytes = abyssKey(keySeed);
+      var iv = keyBytes.slice(0, 16);
+      var key = await root.crypto.subtle.importKey("raw", keyBytes, { name: "AES-CTR" }, false, ["decrypt"]);
+      var plain = await root.crypto.subtle.decrypt(
+        { name: "AES-CTR", counter: iv, length: 128 },
+        key,
+        dataBytes
+      );
+      return new Uint8Array(plain);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function decodeEscapedBinary(escaped) {
+    var out = "";
+    var i = 0;
+    var map = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", "\\": "\\", "\"": "\"", "/": "/" };
+    while (i < escaped.length) {
+      var ch = escaped.charAt(i);
+      if (ch === "\\" && i + 1 < escaped.length) {
+        var next = escaped.charAt(i + 1);
+        if (next === "u" && i + 5 < escaped.length) {
+          var hex = escaped.substring(i + 2, i + 6);
+          if (/^[0-9a-f]{4}$/i.test(hex)) {
+            out += String.fromCharCode(parseInt(hex, 16));
+            i += 6;
+            continue;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(map, next)) {
+          out += map[next];
+          i += 2;
+          continue;
+        }
+      }
+      out += ch;
+      i++;
+    }
+    return out;
+  }
+
+  function extractAbyssDatas(html) {
+    var match = /(?:const|var)\s+datas\s*=\s*"([^"]+)"/.exec(String(html || ""));
+    if (!match) return null;
+    var raw;
+    try { raw = bytesToLatin1(decodeBase64Bytes(match[1].trim())); }
+    catch (_) { return null; }
+    try {
+      if (raw.trim().charAt(0) === "{") return JSON.parse(raw);
+    } catch (_) {}
+
+    var payload = {};
+    var slug = /"slug"\s*:\s*"([^"]+)"/.exec(raw);
+    var md5Id = /"md5_id"\s*:\s*"?([0-9]+)"?/.exec(raw);
+    var userId = /"user_id"\s*:\s*"?([0-9]+)"?/.exec(raw);
+    var download = /"isDownload"\s*:\s*(true|false)/.exec(raw);
+    if (slug) payload.slug = slug[1];
+    if (md5Id) payload.md5_id = md5Id[1];
+    if (userId) payload.user_id = userId[1];
+    if (download) payload.isDownload = download[1] === "true";
+
+    var media = /"media"\s*:\s*"((?:\\.|[^"\\])*)"/.exec(raw);
+    if (media) payload.media = decodeEscapedBinary(media[1]);
+    else {
+      var marker = raw.indexOf("\"media\":\"");
+      var config = raw.indexOf("\",\"config\"", marker);
+      if (marker >= 0 && config > marker) {
+        payload.media = decodeEscapedBinary(raw.substring(marker + 9, config));
+      }
+    }
+    return payload;
+  }
+
+  async function decryptAbyssMedia(encryptedText, userId, slug, md5Id) {
+    if (!encryptedText || !userId || !slug || !md5Id) return null;
+    var raw = new Uint8Array(String(encryptedText).length);
+    for (var i = 0; i < raw.length; i++) raw[i] = String(encryptedText).charCodeAt(i) & 255;
+    var result = await abyssAesCtrTransform(raw, String(userId) + ":" + String(slug) + ":" + String(md5Id));
+    if (!result) return null;
+    try {
+      var parsed = JSON.parse(bytesToUtf8(result));
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function abyssSubtitles(mediaPayload, datas) {
+    var list =
+      (mediaPayload && (Array.isArray(mediaPayload.subtitles) ? mediaPayload.subtitles :
+        Array.isArray(mediaPayload.tracks) ? mediaPayload.tracks : null)) ||
+      (datas && Array.isArray(datas.subtitles) ? datas.subtitles : null) ||
+      (datas && datas.config && Array.isArray(datas.config.subtitles) ? datas.config.subtitles : null) ||
+      [];
+    var result = [];
+    for (var i = 0; i < list.length; i++) {
+      var item = list[i];
+      if (!item || typeof item !== "object") continue;
+      var src = item.src || item.file || item.url || "";
+      if (!src) continue;
+      result.push({ url: String(src), lang: String(item.label || item.title || "Sub") });
+    }
+    return result;
+  }
+
+  async function abyssPlaylist(url, label, options, headers, subtitles) {
+    if (!url) return [];
+    try {
+      var parsed = await hlsCandidates(url, options, label, headers, subtitles);
+      if (parsed.length) {
+        for (var i = 0; i < parsed.length; i++) {
+          parsed[i].name = label + " (" + parsed[i].quality + ")";
+          parsed[i].title = parsed[i].name;
+        }
+        return parsed;
+      }
+    } catch (_) {}
+    var fallbackTitle = label === "Abyss" ? "Abyss - Auto" : label + " (Auto)";
+    var fallback = candidate(
+      options, url, fallbackTitle, "Auto", "m3u8", headers, subtitles
+    );
+    return fallback ? [fallback] : [];
+  }
+
+  function abyssLegacyDecode(encoded) {
+    var charset = "RB0fpH8ZEyVLkv7c2i6MAJ5u3IKFDxlS1NTsnGaqmXYdUrtzjwObCgQP94hoeW+/=";
+    var out = [];
+    for (var offset = 0; offset < encoded.length; offset += 4) {
+      var chunk = encoded.substring(offset, offset + 4);
+      while (chunk.length < 4) chunk += "=";
+      var c = [];
+      for (var i = 0; i < 4; i++) {
+        var index = charset.indexOf(chunk.charAt(i));
+        c[i] = index < 0 ? 64 : index;
+      }
+      out.push((c[0] << 2) | (c[1] >>> 4));
+      if (c[2] !== 64) out.push(((c[1] & 15) << 4) | (c[2] >>> 2));
+      if (c[3] !== 64) out.push(((c[2] & 3) << 6) | c[3]);
+    }
+    return bytesToUtf8(new Uint8Array(out));
+  }
+
+  function abyssLegacyUrl(html) {
+    var source = String(html || "");
+    var encoded = /[\w$]+='([A-Za-z0-9+/=RB0fpH8ZEyVLkv7c2i6MAJ5u3IKFDxlS1NTsnGaqmXYdUrtzjwObCgQP94hoeW]{30,})_'/.exec(source);
+    if (encoded) {
+      try {
+        var parsed = JSON.parse(abyssLegacyDecode(encoded[1]));
+        if (parsed && parsed.domain && parsed.id) {
+          return "https://" + String(parsed.domain).replace(/^\/+|\/+$/g, "") + "/" + String(parsed.id);
+        }
+      } catch (_) {}
+    }
+    var domain = /['"]domain['"]\s*:\s*['"]([^'"]+)['"]/.exec(source);
+    var id = /['"]id['"]\s*:\s*['"]([^'"]+)['"]/.exec(source);
+    if (domain && id) {
+      return "https://" + domain[1].replace(/^\/+|\/+$/g, "") + "/" + id[1];
+    }
+    return "";
+  }
+
+  async function abyssSoraToken(pathValue, sizeValue) {
+    var transformed = await abyssAesCtrTransform(utf8Bytes(pathValue), String(sizeValue));
+    if (!transformed) return "";
+    var first = encodeBase64NoPadding(transformed);
+    return encodeBase64NoPadding(utf8Bytes(first));
+  }
+
+  async function abyssMediaCandidates(mediaPayload, datas, options, referer) {
+    var output = [];
+    var headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Referer": referer
+    };
+    var subtitles = abyssSubtitles(mediaPayload, datas);
+    var hls = mediaPayload && mediaPayload.hls;
+    if (hls && typeof hls === "object") {
+      var hlsLabel = String(hls.label || "");
+      var hlsUrl = "";
+      var hlsKeys = ["file", "url", "master", "src", "source"];
+      for (var i = 0; i < hlsKeys.length; i++) {
+        var value = hls[hlsKeys[i]];
+        if (typeof value === "string" && value) { hlsUrl = value.replace(/\\\//g, "/"); break; }
+      }
+      if (hlsUrl) {
+        var label = hlsLabel ? "Abyss - " + hlsLabel : "Abyss";
+        output = output.concat(await abyssPlaylist(hlsUrl, label, options, headers, subtitles));
+      } else if (Array.isArray(hls.sources)) {
+        for (var j = 0; j < hls.sources.length; j++) {
+          var item = hls.sources[j];
+          if (!item || typeof item !== "object") continue;
+          var playlist = item.file || item.url || item.src || "";
+          if (!playlist) continue;
+          playlist = String(playlist).replace(/\\\//g, "/");
+          var sourceLabel = String(item.label || "Video");
+          output = output.concat(await abyssPlaylist(playlist, "Abyss - " + sourceLabel, options, headers, subtitles));
+        }
+      }
+      var hlsId = String(hls.id || "");
+      if (!output.length && hlsId) {
+        var fallbackUrl = "https://abyssplayer.com/#hls/" + hlsId + "/master.m3u8";
+        var fallback = candidate(options, fallbackUrl, "Abyss - Auto", "Auto", "m3u8", headers, subtitles);
+        if (fallback) output.push(fallback);
+      }
+    }
+
+    var mp4 = mediaPayload && mediaPayload.mp4;
+    if (mp4 && typeof mp4 === "object" && Array.isArray(mp4.sources)) {
+      var sources = mp4.sources.filter(function (item) { return item && typeof item === "object"; });
+      sources.sort(function (a, b) { return Number(b.size || 0) - Number(a.size || 0); });
+      var domains = Array.isArray(mp4.domains) ? mp4.domains : [];
+      for (var k = 0; k < sources.length; k++) {
+        var source = sources[k];
+        var sourceLabel = String(source.label || "Video");
+        var size = String(source.size || "");
+        var resId = String(source.res_id || "");
+        var sub = String(source.sub || "");
+        var direct = String(source.file || "");
+        if (direct) {
+          var directUrl = direct.replace(/\\\//g, "/") + "?ext=.mp4";
+          var directCandidate = candidate(options, directUrl, "Abyss - " + sourceLabel + " (MP4)", sourceLabel, "mp4", headers, subtitles);
+          if (directCandidate) output.push(directCandidate);
+          continue;
+        }
+        var urlValue = String(source.url || "");
+        var pathValue = String(source.path || "");
+        if (urlValue && pathValue && urlValue.indexOf("sssrr.org") < 0) {
+          var combined = urlValue.replace(/\\\//g, "/").replace(/\/+$/g, "") + "/" + pathValue.replace(/\\\//g, "/").replace(/^\/+/g, "");
+          var combinedCandidate = candidate(options, combined, "Abyss - " + sourceLabel + " (MP4)", sourceLabel, "mp4", headers, subtitles);
+          if (combinedCandidate) output.push(combinedCandidate);
+          continue;
+        }
+        if (size && resId && sub && domains.length) {
+          var domain = "";
+          for (var d = 0; d < domains.length; d++) {
+            var domainValue = String(domains[d] || "");
+            if (domainValue && domainValue.indexOf(sub) >= 0) { domain = domainValue; break; }
+          }
+          if (domain) {
+            var soraPath = "/mp4/" + String(datas.md5_id || "") + "/" + resId + "/" + size + "?v=" + String(datas.slug || "");
+            var token = await abyssSoraToken(soraPath, size);
+            if (token) {
+              var normalizedDomain = /^https?:\/\//i.test(domain) ? domain : "https://" + domain;
+              var soraUrl = normalizedDomain.replace(/\/+$/g, "") + "/sora/" + size + "/" + token;
+              var soraCandidate = candidate(options, soraUrl, "Abyss - " + sourceLabel + " (Sora)", sourceLabel, "mp4", headers, subtitles);
+              if (soraCandidate) output.push(soraCandidate);
+            }
+          }
+        }
+      }
+    }
+    return output;
+  }
+
+  async function abyss(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var original = new URL(String(url));
+      var host = original.hostname.toLowerCase();
+      var isAlias = /(^|\.)short\.icu$|(^|\.)embedplayabyss\.top$|(^|\.)abysscdn\.com$|(^|\.)abyssplayer\.com$/.test(host);
+      var targetUrl = String(url);
+      if (isAlias || host === "abyss.to" || host === "player.abyssplayer.com") {
+        var id = original.searchParams.get("v") || "";
+        if (!id) {
+          var embed = /\/embed\/([^/?#]+)/i.exec(original.pathname);
+          if (embed) id = embed[1];
+          else id = original.pathname.split("/").filter(Boolean).pop() || "";
+        }
+        if (/^[A-Za-z0-9_-]+$/.test(id)) targetUrl = "https://abyssplayer.com/?v=" + encodeURIComponent(id);
+      }
+      var baseReferer = String(options.referer || (new URL(targetUrl)).origin + "/");
+      var pageHeaders = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": baseReferer,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      };
+      var pageResponse = await request(targetUrl, pageHeaders, 12000);
+      var finalUrl = pageResponse.url || targetUrl;
+      var html = await pageResponse.text();
+      var datas = extractAbyssDatas(html);
+      if (datas) {
+        var slug = String(datas.slug || "");
+        var md5Id = String(datas.md5_id || "");
+        var userId = String(datas.user_id || "");
+        var media = datas.media;
+        var mediaPayload = null;
+        if (media && typeof media === "object" && !Array.isArray(media)) mediaPayload = media;
+        else if (typeof media === "string") mediaPayload = await decryptAbyssMedia(media, userId, slug, md5Id);
+        if (mediaPayload) {
+          var videos = await abyssMediaCandidates(mediaPayload, datas, options, finalUrl);
+          if (videos.length) return videos;
+        }
+      }
+
+      var legacyUrl = abyssLegacyUrl(html);
+      if (legacyUrl) {
+        var legacyType = /\.m3u8(?:$|\?)/i.test(legacyUrl) ? "m3u8" : "mp4";
+        var legacy = candidate(options, legacyUrl, "Abyss - Video", "Auto", legacyType, { Referer: finalUrl }, []);
+        if (legacy) return [legacy];
+      }
+      return [];
+    } catch (error) {
+      if (options.log) options.log("[Abyss] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
   root.RAWAnimeExtractors = {
+    abyss: abyss,
     dood: dood,
     streamtape: streamtape,
     vidmoly: vidmoly,
@@ -273,7 +757,7 @@ async function azMega(url,label,id,ep){var html=await(await azFetch(url,{headers
 async function azPlaylist(url,label,id,ep,lang,subs,headers){if(!url||!/^https:\/\//i.test(url))return[];var body;try{body=await(await azFetch(url,{headers:headers||{"Referer":AZ_BASE+"/"}})).text();}catch(e){console.log("[AnimeSalt] playlist fetch failed: "+String(e&&e.message||e));return[];}if(body.indexOf("#EXTM3U")<0)return[];var lines=body.split(/\r?\n/),out=[];for(var i=0;i<lines.length;i++){if(lines[i].indexOf("#EXT-X-STREAM-INF:")!==0)continue;var h=(lines[i].match(/RESOLUTION=\d+x(\d+)/i)||[])[1],next="";for(var j=i+1;j<lines.length;j++){var v=lines[j].trim();if(v&&v.charAt(0)!=="#"){next=v;break;}}if(next){var q=azH(h),u=azAbs(next,url);out.push({name:label+" "+q,title:label+" "+q,url:u,quality:q,type:"m3u8",provider:AZ_ID,language:lang,headers:headers||{"Referer":AZ_BASE+"/"},subtitles:subs||[],anilistId:id,episodeNumber:ep});}}if(!out.length)out.push({name:label,title:label,url:url,quality:"Auto",type:"m3u8",provider:AZ_ID,language:lang,headers:headers||{"Referer":AZ_BASE+"/"},subtitles:subs||[],anilistId:id,episodeNumber:ep});return out;}
 async function azFirePlayer(url,label,id,ep,lang){var parsed;try{parsed=new URL(url);}catch(_){return[];}var match=/\/video\/([a-f0-9]{16,})/i.exec(parsed.pathname);if(!match)return[];var videoId=match[1],origin=parsed.protocol+"//"+parsed.host,postUrl=origin+"/player/index.php?data="+encodeURIComponent(videoId)+"&do=getVideo",form="hash="+encodeURIComponent(videoId)+"&r="+encodeURIComponent(AZ_BASE+"/");var response;try{response=await azFetch(postUrl,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded; charset=UTF-8","Referer":url,"Origin":origin,"X-Requested-With":"XMLHttpRequest"},body:form});}catch(e){console.log("[AnimeSalt] FirePlayer request failed: "+String(e&&e.message||e));return[];}var data;try{data=await response.json();}catch(_){return[];}var playlist=data&&(data.videoSource||data.securedLink);if(typeof playlist!=="string"||!/^https:\/\//i.test(playlist))return[];var headers={"Referer":origin+"/","Origin":origin};return await azPlaylist(playlist,label,id,ep,lang,[],headers);}
 async function getStreams(anilistId,mediaType,season,episode,extra){try{var c=Object.assign({},azCtx(),extra||{}),id=String(anilistId||c.anilistId||""),ep=Number(episode||c.episodeNumber||0);if(mediaType!=="anime"||!/^[1-9]\d*$/.test(id)||!Number.isFinite(ep)||ep<=0)return[];var meta=await azMeta(id,c),page=await azFind(meta,c);if(!page)return[];var html=await(await azFetch(page)).text(),episodes=[],tiles=/<(?:div|article|li)\b[^>]*class=["'][^"']*\bep-tile\b[^"']*["'][^>]*>[\s\S]*?<\/(?:div|article|li)>/gi,m;while((m=tiles.exec(html))!==null){var block=m[0],onclick=((block.match(/onclick=(["'])([\s\S]*?)\1/i)||[])[2]||"").replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&amp;/g,"&"),slug=(block.match(/data-slug=["']([^"']+)["']/i)||[])[1]||"",match=/triggerEpisode\s*\(\s*(\[[\s\S]*?\])\s*,\s*["']([^"']*)['"]\s*,\s*["']([^"']*)['"]/.exec(onclick),num=Number((match&&match[2]||block.replace(/<[^>]+>/g," ")).match(/(\d+(?:\.\d+)?)/)?.[1]||slug.match(/(\d+)/)?.[1]);if(num===ep){var data=[];if(match)try{data=JSON.parse(match[1]);}catch(_){}episodes.push({num:num,servers:data});}}
- if(!episodes.length)return[];var out=[],seen={};for(var i=0;i<episodes[0].servers.length;i++){var s=episodes[0].servers[i]||{},u=String(s.url||"");if(!u||seen[u]||/videasy\.net/i.test(u))continue;seen[u]=1;var lang=String(s.lang||"sub").toLowerCase(),name=String(s.name||"AnimeSalt "+lang);if(/megaplay\.buzz/i.test(u)){out=out.concat(await azMega(azAbs(u,page),name,id,ep));continue;}if(/vidmoly/i.test(u)){var shared=globalThis&&globalThis.RAWAnimeExtractors;if(shared){out=out.concat(await shared.vidmoly(azAbs(u,page),{provider:AZ_ID,anilistId:id,episodeNumber:ep,language:lang,labelPrefix:name,log:function(m){console.log(m);}}));}continue;}if(/as-cdn|firevideoplayer\.com|\/video\/[a-f0-9]{16,}/i.test(u)){out=out.concat(await azFirePlayer(azAbs(u,page),name,id,ep,lang));continue;}if(/^https:\/\//i.test(u)){var htm="";try{htm=await(await azFetch(u,{headers:{"Referer":page}})).text();}catch(_){}var direct=(htm.match(/https?:\/\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?/i)||[])[0];if(direct)out.push({name:name,title:name,url:direct,quality:"Auto",type:"m3u8",provider:AZ_ID,language:lang,headers:{"Referer":u},subtitles:[],anilistId:id,episodeNumber:ep});else if(/\.(?:m3u8|mp4|mkv)(?:$|\?)/i.test(u))out.push({name:name,title:name,url:u,quality:"Auto",type:/mp4/i.test(u)?"mp4":/mkv/i.test(u)?"mkv":"m3u8",provider:AZ_ID,language:lang,headers:{"Referer":page},subtitles:[],anilistId:id,episodeNumber:ep});}}
+ if(!episodes.length)return[];var out=[],seen={};for(var i=0;i<episodes[0].servers.length;i++){var s=episodes[0].servers[i]||{},u=String(s.url||"");if(!u||seen[u]||/videasy\.net/i.test(u))continue;seen[u]=1;var lang=String(s.lang||"sub").toLowerCase(),name=String(s.name||"AnimeSalt "+lang);if(/megaplay\.buzz/i.test(u)){out=out.concat(await azMega(azAbs(u,page),name,id,ep));continue;}if(/vidmoly/i.test(u)){var shared=globalThis&&globalThis.RAWAnimeExtractors;if(shared){out=out.concat(await shared.vidmoly(azAbs(u,page),{provider:AZ_ID,anilistId:id,episodeNumber:ep,language:lang,labelPrefix:name,log:function(m){console.log(m);}}));}continue;}if(/abyssplayer\.com|abyss\.to|short\.icu|embedplayabyss|abysscdn\.com/i.test(u)){var abyssShared=globalThis&&globalThis.RAWAnimeExtractors;if(abyssShared){out=out.concat(await abyssShared.abyss(azAbs(u,page),{provider:AZ_ID,anilistId:id,episodeNumber:ep,language:lang,labelPrefix:name,referer:azAbs(u,page),log:function(m){console.log(m);}}));}continue;}if(/as-cdn|firevideoplayer\.com|\/video\/[a-f0-9]{16,}/i.test(u)){out=out.concat(await azFirePlayer(azAbs(u,page),name,id,ep,lang));continue;}if(/^https:\/\//i.test(u)){var htm="";try{htm=await(await azFetch(u,{headers:{"Referer":page}})).text();}catch(_){}var direct=(htm.match(/https?:\/\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?/i)||[])[0];if(direct)out.push({name:name,title:name,url:direct,quality:"Auto",type:"m3u8",provider:AZ_ID,language:lang,headers:{"Referer":u},subtitles:[],anilistId:id,episodeNumber:ep});else if(/\.(?:m3u8|mp4|mkv)(?:$|\?)/i.test(u))out.push({name:name,title:name,url:u,quality:"Auto",type:/mp4/i.test(u)?"mp4":/mkv/i.test(u)?"mkv":"m3u8",provider:AZ_ID,language:lang,headers:{"Referer":page},subtitles:[],anilistId:id,episodeNumber:ep});}}
  return out;}catch(e){console.log("[AnimeSalt] "+String(e&&e.message||e));return[];}}
 if(typeof globalThis!=="undefined")globalThis.getStreams=getStreams;
 if(typeof module!=="undefined"&&module.exports)module.exports={getStreams:getStreams};

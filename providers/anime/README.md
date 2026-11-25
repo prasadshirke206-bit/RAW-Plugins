@@ -34,12 +34,12 @@ The app must compare `anilistId` and `episodeNumber` against the active playback
 - `anipm.js` — Ani.pm playback-bootstrap and Settlar media session.
 - `animesaga.js` — AnimeSaga encrypted JSON and direct media paths.
 - `anitusk.js` — Anitummy Fast MegaPlay route and AES-CBC payload.
-- `animesalt.js` — AnimeSalt WordPress episode data and public MegaPlay/HLS routes.
+- `animesalt.js` — AnimeSalt WordPress episode data, public MegaPlay/FirePlayer routes and shared Abyss AES-CTR HLS/MP4/Sora extraction.
 - `fouranimo.js` — Zanix/FourAnimo tokenized episode API and cloud HLS sources.
 - `animotvslash.js` — AniMoTVSlash mirror parsing and directly visible HLS.
 - `anineko.js` — AniNeko server buttons and directly visible HLS/MP4.
 - `animestream.js` — AnimeStream REST catalogue/episode APIs and locale HLS.
-- `animostream.js` — Animostream Blogger animeData and direct HLS/MP4.
+- `animostream.js` — Animostream Blogger animeData, shared Abyss/Dood/StreamTape/VidMoly extraction and direct HLS/MP4.
 - `anilab.js`, `animepahe.js`, `animesogo.js`, `animesuge.js`, `anisnatch.js`, `aniwave.js`, `av1encodes.js`, `reanime.js`, `senshi.js` — disabled fail-closed entries pending the host integrations documented in the runtime guide.
 
 See `docs/RAW_APP_ANIME_RUNTIME_INTEGRATION.md` for the host requirements and known limitations.

@@ -574,7 +574,7 @@
     {
       "id": "animesalt",
       "name": "AnimeSalt",
-      "description": "AniList title-mapped AnimeSalt Wordpress episode/server extraction with public MegaPlay AES-CBC and observed HLS/subtitles.",
+      "description": "AniList title-mapped AnimeSalt Wordpress episode/server extraction with public MegaPlay AES-CBC, shared Abyss AES-CTR HLS/MP4 extraction, FirePlayer and observed subtitles.",
       "version": "1.0.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
@@ -682,7 +682,7 @@
     {
       "id": "animostream",
       "name": "AniMoStream",
-      "description": "AniList title-mapped Animostream Blogger post/season data parsing and direct HLS/MP4 source extraction.",
+      "description": "AniList title-mapped Animostream Blogger post/season data parsing with shared Abyss AES-CTR, Dood, StreamTape and VidMoly extraction plus direct HLS/MP4 sources.",
       "version": "1.0.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
