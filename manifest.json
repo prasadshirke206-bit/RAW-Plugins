@@ -1,7 +1,7 @@
 {
   "name": "RAW-Plugins",
   "id": "raw-plugins",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "manifestVersion": 1,
   "description": "Official RAW streaming plugins for movies, TV and anime.",
   "app": {
@@ -399,6 +399,27 @@
       "contentLanguage": [
         "sub",
         "dub"
+      ]
+    },
+    {
+      "id": "miruro",
+      "name": "Miruro",
+      "description": "AniList-mapped Miruro secure-pipe provider. Resolves exact episode/provider/subtype records, decodes the pipe response, and emits observed direct HLS streams with Miruro relay URLs and real subtitle tracks. Uses ordinary HTTP requests; browser verification and Android-only embed extractors are not emulated.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/miruro.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub",
+        "ssub"
       ]
     }
   ]

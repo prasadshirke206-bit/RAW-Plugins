@@ -26,5 +26,6 @@ The app must compare `anilistId` and `episodeNumber` against the active playback
 - `anikage.js` — Anikage API and Koto/Rai source path.
 - `anikoto.js` — Anikoto multisource AJAX, mapper and MegaPlay path.
 - `anilight.js` — AniLight API and public MegaPlay path.
+- `miruro.js` — Miruro AniList episode mapping, secure-pipe response decoding, source/subtype fallback, Miruro HLS relay URL construction and observed subtitle tracks. Browser-fingerprint spoofing and Android-only embed extractors are intentionally not ported.
 
 See `docs/RAW_APP_ANIME_RUNTIME_INTEGRATION.md` for the host requirements and known limitations.

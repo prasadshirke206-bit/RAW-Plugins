@@ -44,7 +44,8 @@ Populate `globalThis.__CALL_ARGS__` with the same anime identity and context. Re
     "allanime": { "id": "provider-specific-id" },
     "anikage": { "slug": "provider-specific-slug" },
     "anikoto": { "url": "https://provider.example/watch/provider-slug" },
-    "anilight": { "slug": "provider-specific-slug" }
+    "anilight": { "slug": "provider-specific-slug" },
+    "miruro": { "mirror": "https://www.miruro.tv" }
   }
 }
 ```
@@ -90,3 +91,10 @@ The JS ports do not bypass CAPTCHA/Turnstile or manufacture CDN session tokens. 
 ## Testing still required in the app
 
 Repository tests can verify manifest, syntax and invocation contracts. They cannot prove MPV playback. Device verification must include exact anime/episode identity, headers, HLS startup, subtitles, sustained playback, cancellation and fallback behaviour for each provider.
+
+
+## Miruro-specific runtime boundary
+
+Miruro's JS port follows the original pipe contract for exact AniList episode matching, source/subtype lookup, XOR+gzip response decoding, dynamic stream-proxy configuration and subtitle parsing. It returns only observed direct HLS source records, routed through the configured Miruro stream relay.
+
+The port deliberately does not reproduce the Kotlin extension's browser-fingerprint spoofing, cookie warm-up sequence, or Cloudflare/WAF workarounds. A 403/challenge response is a hard failure: RAW should offer a normal browser/session verification handoff rather than changing request fingerprints or trying to evade the challenge. The original Android Universal/MegaCloud/RapidCloud embed extractors and local M3U8 relay also remain native-only; embed pages are not treated as playable streams.
