@@ -734,7 +734,154 @@
     }
   }
 
+
+  function filemoonUnbase(value, radix) {
+    var token = String(value);
+    if (radix >= 2 && radix <= 36) {
+      var lower = token.toLowerCase();
+      var digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+      var result = 0;
+      if (!lower) return 0;
+      for (var i = 0; i < lower.length; i++) {
+        var digit = digits.indexOf(lower.charAt(i));
+        if (digit < 0 || digit >= radix) return 0;
+        result = result * radix + digit;
+        if (!Number.isSafeInteger(result)) return 0;
+      }
+      return result;
+    }
+
+    var selector = radix > 62 ? 95 : radix > 54 ? 62 : radix > 52 ? 54 : 52;
+    var alphabet95 = " !\"#$%&\\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\\\]^_" +
+      String.fromCharCode(96) + "abcdefghijklmnopqrstuvwxyz{|}~";
+    var alphabets = {
+      52: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP",
+      54: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR",
+      62: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      95: alphabet95
+    };
+    var alphabet = alphabets[selector] || "";
+    var total = 0;
+    var reversed = token.split("").reverse();
+    for (var j = 0; j < reversed.length; j++) {
+      var index = alphabet.indexOf(reversed[j]);
+      if (index < 0) index = 0;
+      total += Math.pow(radix, j) * index;
+      if (!Number.isSafeInteger(total)) return 0;
+    }
+    return Math.trunc(total);
+  }
+
+  function filemoonUnpack(script) {
+    var source = String(script || "");
+    var packedRegex = /eval\(function\(p,a,c,k,e,[rd]?/i;
+    if (!packedRegex.test(source)) return [];
+    var extractRegex = /}\s*\('(.*)',\s*(\d+),\s*(\d+),\s*'(.*?)'\.split\('\|'\)/gims;
+    var matches = [];
+    var match;
+    while ((match = extractRegex.exec(source)) !== null) {
+      var payload = match[1];
+      var radix = Number(match[2]) || 10;
+      var count = Number(match[3]);
+      var symbols = match[4].split("|");
+      if (!Number.isFinite(count) || symbols.length !== count) continue;
+      var decoded = payload.replace(/\b[a-zA-Z0-9_]+\b/g, function (word) {
+        var index = filemoonUnbase(word, radix);
+        var replacement = index >= 0 && index < symbols.length ? symbols[index] : "";
+        return replacement || word;
+      });
+      if (decoded.trim()) matches.push(decoded);
+    }
+    return matches;
+  }
+
+  async function filemoon(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var pageUrl = String(url);
+      var currentUrl = new URL(pageUrl);
+      var pageHeaders = Object.assign({}, options.pageHeaders || {}, {
+        Referer: pageUrl,
+        Origin: currentUrl.origin
+      });
+      var pageResponse = await request(pageUrl, pageHeaders, 12000);
+      var html = await pageResponse.text();
+      var finalPageUrl = pageResponse.url || pageUrl;
+      var script = (html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || []).map(function (block) {
+        return (block.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i) || [,""])[1];
+      }).find(function (block) {
+        return /eval/i.test(block) && /m3u8/i.test(block);
+      }) || "";
+
+      var playlistPageUrl = finalPageUrl;
+      if (!script) {
+        var iframe = (html.match(/<iframe\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1/i) || [,"",""])[2];
+        if (!iframe) return [];
+        var iframeUrl = absolute(iframe, finalPageUrl);
+        if (!iframeUrl || !/^https?:\/\//i.test(iframeUrl)) return [];
+        var iframeResponse = await request(iframeUrl, pageHeaders, 12000);
+        html = await iframeResponse.text();
+        playlistPageUrl = iframeResponse.url || iframeUrl;
+        script = (html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || []).map(function (block) {
+          return (block.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i) || [,""])[1];
+        }).find(function (block) {
+          return /eval/i.test(block) && /m3u8/i.test(block);
+        }) || "";
+      }
+      if (!script) return [];
+
+      var unpackedBlocks = filemoonUnpack(script);
+      if (!unpackedBlocks.length) return [];
+      var unpacked = unpackedBlocks.join(" ");
+      var fileMatch = /\{\s*file\s*:\s*"([^"]+)"\s*\}/.exec(unpacked);
+      var masterUrl = fileMatch && fileMatch[1] ? absolute(fileMatch[1], playlistPageUrl) : "";
+      if (!masterUrl || !/^https:\/\//i.test(masterUrl)) return [];
+
+      var subtitleUrl = "";
+      try {
+        var query = new URL(playlistPageUrl).searchParams;
+        subtitleUrl = query.get("sub.info") || "";
+      } catch (_) {}
+      if (!subtitleUrl) {
+        var fetchMatch = /fetch\(\s*'([^']+)'\s*\)\s*\./i.exec(unpacked);
+        if (fetchMatch) subtitleUrl = fetchMatch[1];
+      }
+
+      var subtitles = [];
+      if (subtitleUrl) {
+        try {
+          var resolvedSubtitleUrl = absolute(subtitleUrl, playlistPageUrl);
+          var subResponse = await request(resolvedSubtitleUrl, pageHeaders, 10000);
+          var subJson = await subResponse.json();
+          if (Array.isArray(subJson)) {
+            for (var i = 0; i < subJson.length; i++) {
+              var item = subJson[i];
+              if (item && item.file && item.label) {
+                var subCandidate = absolute(item.file, resolvedSubtitleUrl);
+                if (subCandidate && /^https:\/\//i.test(subCandidate)) {
+                  subtitles.push({ url: subCandidate, lang: String(item.label) });
+                }
+              }
+            }
+          }
+        } catch (_) {
+          // Kotlin ignores subtitle request/serialization failures.
+        }
+      }
+
+      var host = new URL(playlistPageUrl).host;
+      var streamHeaders = { "Referer": "https://" + host + "/" };
+      var prefix = "FileMoon -";
+      return await hlsCandidates(masterUrl, options, prefix, streamHeaders, subtitles);
+    } catch (error) {
+      if (options.log) options.log("[Filemoon] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
   root.RAWAnimeExtractors = {
+    filemoon: filemoon,
     abyss: abyss,
     dood: dood,
     streamtape: streamtape,
