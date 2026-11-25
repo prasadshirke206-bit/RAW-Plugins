@@ -42,7 +42,7 @@ The app must compare `anilistId` and `episodeNumber` against the active playback
 - `animostream.js` — Animostream Blogger animeData, shared Abyss/Dood/StreamTape/VidMoly extraction and direct HLS/MP4.
 - `anilab.js`, `animepahe.js`, `animesogo.js`, `animesuge.js`, `anisnatch.js`, `aniwave.js`, `av1encodes.js`, `reanime.js`, `senshi.js` — disabled fail-closed entries pending the host integrations documented in the runtime guide.
 
-See `docs/RAW_APP_ANIME_RUNTIME_INTEGRATION.md` for the host requirements and known limitations.
+See `docs/RAW_APP_ANIME_RUNTIME_INTEGRATION.md` for the host requirements and known limitations. The proposed Android WebView stream resolver contract is in `docs/RAW_APP_ANIME_WEBVIEW_BRIDGE_SPEC.md`.
 
 ## Enabled vs. disabled
 
