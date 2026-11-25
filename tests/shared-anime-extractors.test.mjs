@@ -348,12 +348,12 @@ test("Abyss rejects invalid anime identity before making requests", async () => 
     throw new Error("Network should not be used");
   });
   assert.deepEqual(Array.from(await extractors.abyss("https://abyssplayer.com/?v=x", {
-    provider: "animestream",
+    provider: "animostream",
     anilistId: "0",
     episodeNumber: 1
   })), []);
   assert.deepEqual(Array.from(await extractors.abyss("https://abyssplayer.com/?v=x", {
-    provider: "animestream",
+    provider: "animostream",
     anilistId: "21",
     episodeNumber: 0
   })), []);
@@ -368,7 +368,7 @@ test("Abyss fails closed when encrypted media cannot be decrypted", async () => 
     throw new Error("Unexpected request " + url);
   });
   const candidates = await extractors.abyss("https://abyssplayer.com/?v=x", {
-    provider: "animestream",
+    provider: "animostream",
     anilistId: "21",
     episodeNumber: 1
   });
@@ -626,7 +626,7 @@ test("EmbedSeek returns direct MP4 source with provider subtitle tracks", async 
   });
 
   const candidates = await extractors.embedseek("https://www.animostream.xyz/watch?id=direct-ep", {
-    provider: "animestream",
+    provider: "animostream",
     anilistId: "21",
     episodeNumber: 2,
     referer: "https://www.animostream.xyz/"
@@ -649,12 +649,12 @@ test("EmbedSeek fails closed on invalid ciphertext and invalid anime identity", 
   });
 
   assert.deepEqual(Array.from(await extractors.embedseek("https://animostream.xyz/watch?id=bad", {
-    provider: "animestream",
+    provider: "animostream",
     anilistId: "21",
     episodeNumber: 1
   })), []);
   assert.deepEqual(Array.from(await extractors.embedseek("https://animostream.xyz/watch?id=bad", {
-    provider: "animestream",
+    provider: "animostream",
     anilistId: "0",
     episodeNumber: 1
   })), []);
