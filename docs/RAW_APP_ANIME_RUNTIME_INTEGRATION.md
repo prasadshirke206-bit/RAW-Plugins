@@ -110,7 +110,7 @@ The port deliberately does not reproduce the Kotlin extension's browser-fingerpr
 
 ## Newly ported direct-flow providers
 
-Thirteen additional provider entrypoints now use the AniList invocation contract: AniChan, AniKura, AniKuro, AnimeHeaven, Ani.pm, AnimeSaga, Anitummy, AnimeSalt, FourAnimo/Zanix, AniMoTVSlash, AniNeko, AnimeStream and Animostream. They use exact AniList ID plus episode binding, and only emit observed direct HLS/MP4 media records. Their website title matching is allowed only when it produces a unique exact alias match; use validated `providerMappings` where the app already has a real provider ID or canonical page URL.
+Thirteen additional provider entrypoints now use the AniList invocation contract: AniChan, AniKura, AniKuro, AnimeHeaven, Ani.pm, AnimeSaga, Anitummy, AnimeSalt, FourAnimo/Zanix, AniMoTVSlash, AniNeko, AnimeStream and Animostream. They use exact AniList ID plus episode binding and emit only observed direct HLS/MP4 media records. Anitummy now also attempts its public Kiwi/Net/Ally sub/dub JSON routes and visible VidNest media; extractor-only protected embeds remain unavailable. Their website title matching is allowed only when it produces a unique exact alias match; use validated `providerMappings` where the app already has a real provider ID or canonical page URL.
 
 ## Disabled providers and native integration blockers
 
