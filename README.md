@@ -41,7 +41,7 @@ The same QuickJS engine and fetch bridge are used. The host must route anime thr
 
 ## Current anime conversion scope
 
-The five JavaScript entrypoints are behavioural ports of the original provider sources:
+The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScript ports; nine remain explicitly disabled until their native-only or security-sensitive dependencies have a supported RAW host integration.
 
 | Provider | Implemented in QuickJS | Known host/runtime boundary |
 |---|---|---|
@@ -50,6 +50,19 @@ The five JavaScript entrypoints are behavioural ports of the original provider s
 | Anikoto | VRF search transform, AJAX episode/server flow, mapper results, MegaPlay AES-CBC source parsing, HLS variants and subtitles | Does not forge expiring CDN HMAC tokens or solve browser challenges; those streams need a host/native resolver |
 | AniLight | AniList-backed API lookup, episode matching, public MegaPlay embed, AES-CBC source parsing, HLS variants and subtitles | Non-MegaPlay routes relying on WebView/Turnstile require a host-provided browser capability; QuickJS does not emulate that browser |
 | Miruro | AniList episode matching, secure-pipe envelope and XOR/gzip response decoding, provider/subtype fallback, rotating proxy configuration, direct HLS relay URLs and source subtitle tracks | Uses ordinary HTTP requests and fails closed on WAF/Cloudflare denial. Android-only embed extractors and local HLS relay are not emulated |
+| AniChan | AniList ID → episodes/servers API, direct HLS/MP4 and subtitle tracks | Non-direct embed resolvers are omitted |
+| AniKura | Exact AniList title mapping → episode/stream API, HLS/MP4 and tracks | Kotlin trial gate is not copied into RAW |
+| AniKuro | Exact AniList alias search → episode API → normalized provider sources | Only normalized direct media URLs are emitted |
+| AnimeHeaven | Exact title search → episode gate key → direct MP4/HLS | Only media URLs directly visible after the public gate request are emitted |
+| Ani.pm | AniList API → playback bootstrap → Settlar session → HLS + subtitles | Uses public session endpoints; no native local proxy is emulated |
+| AnimeSaga | AniList GraphQL → encrypted episodes/stream JSON → direct HLS/MP4 | Android local proxy and hoster-specific extractors are omitted |
+| Anitummy | AniList episode → Fast MegaPlay source API → AES-CBC decode → HLS + captions | Other native/Cloudflare hoster routes are omitted |
+| AnimeSalt | Exact AniList title → WordPress episode/server data → public MegaPlay or direct HLS/MP4 | Unsupported specialized hosters are omitted |
+| FourAnimo | AniList title mapping → page token/AJAX episode list → M/R/ReCloud source endpoint | Only observed direct HLS playlists are returned |
+| AniMoTVSlash | Exact title lookup → episode/mirror parsing → directly visible HLS | Specialized StreamWish/VidHide/Vidara extractors are not emulated |
+| AniNeko | Exact title lookup → episode/server buttons → directly visible HLS/MP4 | Native loopback proxy and specialized hoster extractors are not emulated |
+| AnimeStream | Exact title mapping → REST series/season/episode API → locale HLS | Streams requiring native encrypted-key proxying are omitted |
+| Animostream | Exact title lookup → Blogger animeData season/server arrays → direct HLS/MP4 | Specialized hoster extractors are not emulated |
 
 The original Kotlin source files under `anime/providers/` remain unchanged. The JavaScript files are separate runtime ports, not a claim that every Android-only capability can be reproduced inside QuickJS.
 
@@ -68,3 +81,19 @@ https://raw.githubusercontent.com/prasadshirke206-bit/RAW-Plugins/main/manifest.
 Treat provider code and returned URLs as untrusted. Enforce timeouts, cancellation, response-size limits, HTTPS host policy, request budgets and per-provider isolation. Never expose app secrets. Do not bypass CAPTCHA, authentication, DRM or other access controls.
 
 Original Kotlin source is retained under its own upstream attribution and Apache-2.0 terms; see `THIRD_PARTY_NOTICES.md` and `licenses/`.
+
+
+## Pending host integrations (disabled in the manifest)
+
+The following nine sources are preserved in the Kotlin source tree but are not presented as enabled QuickJS providers:
+
+- **AniLab** — requires Kyoto Player official-client request signing.
+- **AnimePahe** — depends on Cloudflare/session handling and native HLS/Kwik extractors.
+- **AnimeSogo** and **AnimeSuge** — depend on shared AnikotoTheme source not included in the uploaded source snapshot.
+- **AniSnatch** — dynamic site-config request/response cipher and gzip binary framing are not yet ported and tested.
+- **AniWave** — depends on a VRF/extractor chain and native HLS proxy.
+- **AV1Encodes** — current flow includes verification/ad-check dependencies and native extractors.
+- **ReAnime** — depends on the local FlixProxyServer.
+- **Senshi** — depends on AES-GCM playlist handling and a native segment/key proxy.
+
+These entries have enabled=false and fail closed. They are not fake or incomplete stream resolvers masquerading as working providers.

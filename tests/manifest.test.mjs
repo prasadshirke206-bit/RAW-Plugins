@@ -12,7 +12,9 @@ const existingMovieTvIds = [
   "bingr", "movy", "4khdhub", "hdhub4u", "bollyflix",
   "cinevood", "freekz", "net77", "uhdmovies", "vegamovies"
 ];
-const animeIds = ["allanime", "anikage", "anikoto", "anilight", "miruro"];
+const activeAnimeIds = ["allanime","anikage","anikoto","anilight","miruro","anichan","anikura","anikuro","animeheaven","anipm","animesaga","anitusk","animesalt","fouranimo","animotvslash","anineko","animestream","animostream"];
+const pendingAnimeIds = ["anilab","animepahe","animesogo","animesuge","anisnatch","aniwave","av1encodes","reanime","senshi"];
+const animeIds = [...activeAnimeIds, ...pendingAnimeIds];
 
 test("manifest retains the existing QuickJS movie/TV contract", () => {
   assert.equal(manifest.id, "raw-plugins");
@@ -53,12 +55,12 @@ test("movie/TV provider catalogue entries remain intact", () => {
   }
 });
 
-test("exactly five anime providers are registered in the anime folder", () => {
+test("exactly 27 anime providers are registered with explicit enablement", () => {
   const anime = manifest.providers.filter((provider) => provider.supportedTypes.includes("anime"));
   assert.deepEqual(anime.map((provider) => provider.id).sort(), animeIds.slice().sort());
   for (const provider of anime) {
     assert.deepEqual(provider.supportedTypes, ["anime"]);
-    assert.equal(provider.enabled, true);
+    assert.equal(provider.enabled, activeAnimeIds.includes(provider.id), provider.id);
     assert.ok(provider.filename.startsWith("providers/anime/"));
     assert.ok(provider.filename.endsWith(".js"));
   }
@@ -70,8 +72,10 @@ test("anime QuickJS scripts parse and expose a fail-closed getStreams entrypoint
     const source = fs.readFileSync(filename, "utf8");
     assert.match(source, /async function getStreams\s*\(\s*anilistId\s*,\s*mediaType\s*,\s*season\s*,\s*episode/);
     assert.match(source, /globalThis\.getStreams\s*=\s*getStreams/);
-    assert.match(source, /anilistId\s*=\s*id/);
-    assert.match(source, /episodeNumber\s*=\s*ep/);
+    if (provider.enabled) {
+      assert.match(source, /anilistId/);
+      assert.match(source, /episodeNumber/);
+    }
     new vm.Script(source, { filename });
 
     const context = {

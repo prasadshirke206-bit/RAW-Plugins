@@ -1,0 +1,33 @@
+/* AniKuro — AniList-title mapped JSON discovery + normalized source API.
+ * Uses the same provider endpoints and normalized source structure as the
+ * Kotlin extension. It never forwards unresolved embed pages as playable URLs.
+ */
+var AK_ID="anikuro",AK_BASE="https://anikuro.ru";
+function akCtx(){return(globalThis&&globalThis.__CALL_ARGS__)||{};}
+async function akFetch(url,opt){var c;var r=await Promise.race([fetch(url,opt||{}),new Promise(function(_,rej){c=setTimeout(function(){rej(new Error("timeout"));},10000);})]).finally(function(){clearTimeout(c);});if(!r||!r.ok)throw new Error("HTTP "+(r?r.status:"network"));return r;}
+async function akJson(url,opt){return(await akFetch(url,opt)).json();}
+function akNorm(x){return String(x||"").toLowerCase().normalize?String(x||"").toLowerCase().normalize("NFKC").replace(/[^a-z0-9]+/g," ").trim():String(x||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
+async function akMeta(id,ctx){var names=[].concat(ctx.title||[],ctx.titles||[],ctx.aliases||[]).map(function(x){return typeof x==="string"?x:x&&(x.english||x.romaji||x.native||x.userPreferred)||"";}).filter(Boolean);if(names.length)return{id:String(id),titles:names};var q="query ($id:Int){Media(id:$id,type:ANIME){id title{english romaji native userPreferred} synonyms}}";var d=await akJson("https://graphql.anilist.co",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({query:q,variables:{id:Number(id)}})});var m=d&&d.data&&d.data.Media;if(!m||String(m.id)!==String(id))throw new Error("AniList identity mismatch");return{id:String(m.id),titles:[m.title&&m.title.userPreferred,m.title&&m.title.english,m.title&&m.title.romaji,m.title&&m.title.native].concat(m.synonyms||[]).filter(Boolean)};}
+function akItemTitles(x){var t=x&&x.title||{};return [typeof x.title==="string"?x.title:"",t.userPreferred,t.english,t.romaji,t.native,x.name,x.english,x.romaji].filter(Boolean);}
+async function akResolveId(meta,ctx){var map=ctx.providerMappings&&ctx.providerMappings.anikuro;if(map){var mapped=typeof map==="object"?(map.id||map.slug||map.url):map;if(mapped&&/^\d+$/.test(String(mapped)))return String(mapped);}
+ var exact=[];for(var i=0;i<Math.min(meta.titles.length,4);i++){var res=await akJson(AK_BASE+"/api/v1/discovery/search?q="+encodeURIComponent(meta.titles[i])+"&page=1");var items=res&&res.data&&res.data.items||[];items.forEach(function(x){if(akItemTitles(x).some(function(t){return meta.titles.some(function(n){return akNorm(n)===akNorm(t);});}))exact.push(x);});}
+ var unique={};exact.forEach(function(x){if(x&&x.id!=null)unique[String(x.id)]=x;});var keys=Object.keys(unique);return keys.length===1?keys[0]:"";}
+function akQ(s){var v=String(s||"").match(/(\d{3,4})p?/i);var h=Number(v&&v[1]||0);return h>=2160?"2160p":h>=1440?"1440p":h>=1080?"1080p":h>=720?"720p":h>=480?"480p":h>=360?"360p":h>=240?"240p":h>=144?"144p":"Auto";}
+function akCandidate(s,variant,id,ep){if(!s||!/^https:\/\//i.test(String(s.url||"")))return null;var quality=String(s.quality||"");var type=String(s.type||"m3u8").toLowerCase();if(!["m3u8","mp4","mpd","mkv"].includes(type))type=/\.mp4(?:$|\?)/i.test(s.url)?"mp4":/\.mpd(?:$|\?)/i.test(s.url)?"mpd":"m3u8";var subs=(s.subtitles||[]).map(function(t){return t&&t.url&&/^https:\/\//i.test(t.url)?{url:t.url,lang:t.label||t.lang||"Subtitle"}:null;}).filter(Boolean);var headers={};Object.keys(s.headers||{}).forEach(function(k){headers[k]=String(s.headers[k]);});var label=(variant||"Sub")+" · "+(quality||"Auto");return{name:label,title:label,url:s.url,quality:akQ(quality),type:type,provider:AK_ID,language:variant||"sub",headers:headers,subtitles:subs,anilistId:String(id),episodeNumber:Number(ep)};}
+async function getStreams(anilistId,mediaType,season,episode,extra){try{var ctx=Object.assign({},akCtx(),extra||{}),id=String(anilistId||ctx.anilistId||""),ep=Number(episode||ctx.episodeNumber||0);if(mediaType!=="anime"||!/^[1-9]\d*$/.test(id)||!Number.isFinite(ep)||ep<=0)return[];var meta=await akMeta(id,ctx),siteId=await akResolveId(meta,ctx);if(!siteId)return[];var epData=await akJson(AK_BASE+"/api/v1/anime/"+encodeURIComponent(siteId)+"/episodes");var eps=epData&&epData.data&&epData.data.episodes||[];var item=eps.find(function(x){return Math.abs(Number(x.number||x.displayNumber)-ep)<0.0001;});if(!item)return[];var types=String(ctx.preferredAudio||"sub").toLowerCase()==="dub"?["dub","sub"]:["sub","dub"];var providers=[
+["AniKuro","/api/v1/animepower/video/"+siteId+"/"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["Anikoto","/api/v1/sources/anikoto/"+siteId+":"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["AnimiX","/api/v1/sources/animix/"+siteId+":"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["Senshi","/api/v1/sources/senshi/"+siteId+":"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["AnimePahe","/api/v1/sources/animepahe/"+siteId+":"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["AllAnime","/api/v1/sources/allanime/"+siteId+":"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["ReAnime","/api/v1/sources/reanime/"+siteId+":"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["AnimeDao","/api/v1/sources/animedao/"+siteId+":"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["AnimeGG","/api/v1/animegg/video/"+siteId+"/"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["AniDB","/api/v1/anidb/video/"+siteId+"/"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["AnimeDunya","/api/v1/animedunya/video/"+siteId+"/"+encodeURIComponent(item.displayNumber||item.number||ep)],
+["AnimeVerse","/api/v1/animeverse/video/"+siteId+"/"+encodeURIComponent(item.displayNumber||item.number||ep)]
+];var out=[];for(var p=0;p<providers.length;p++){try{var res=await akJson(AK_BASE+providers[p][1]);var normalized=res&&res.data&&res.data.normalized||[];for(var n=0;n<normalized.length;n++){var norm=normalized[n]||{},variant=String(norm.variant||"sub").toLowerCase();if(types.indexOf(variant)<0)continue;var srcs=norm.sources||[];for(var j=0;j<srcs.length;j++){var c=akCandidate(Object.assign({},srcs[j],{headers:Object.assign({},norm.headers||{},srcs[j].headers||{}),subtitles:norm.subtitles||srcs[j].subtitles||[]}),variant,id,ep);if(c)out.push(c);}}if(out.length)break;}catch(_){}}
+ var seen={};return out.filter(function(c){if(seen[c.url])return false;seen[c.url]=1;return true;});}catch(e){console.log("[AniKuro] "+String(e&&e.message||e));return[];}}
+if(typeof globalThis!=="undefined")globalThis.getStreams=getStreams;
+if(typeof module!=="undefined"&&module.exports)module.exports={getStreams:getStreams};

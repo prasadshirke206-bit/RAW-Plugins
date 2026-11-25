@@ -1,7 +1,7 @@
 {
   "name": "RAW-Plugins",
   "id": "raw-plugins",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "manifestVersion": 1,
   "description": "Official RAW streaming plugins for movies, TV and anime.",
   "app": {
@@ -421,6 +421,421 @@
         "dub",
         "ssub"
       ]
+    },
+    {
+      "id": "anichan",
+      "name": "AniChan",
+      "description": "AniList-mapped AniChan episode/server API port with observed direct HLS/MP4 candidates and subtitle tracks.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/anichan.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub"
+      ]
+    },
+    {
+      "id": "anikura",
+      "name": "AniKura",
+      "description": "AniList title-mapped AniKura episode stream API with HLS/MP4 sources and observed tracks.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/anikura.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4",
+        "mkv"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub"
+      ]
+    },
+    {
+      "id": "anikuro",
+      "name": "AniKuro",
+      "description": "AniList title-mapped AniKuro discovery and normalized source resolver with returned headers, subtitles and source quality.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/anikuro.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mpd",
+        "mp4",
+        "mkv"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub",
+        "soft-sub"
+      ]
+    },
+    {
+      "id": "animeheaven",
+      "name": "AnimeHeaven",
+      "description": "AniList title-mapped AnimeHeaven episode gate resolver; emits direct media sources only and excludes its decoy host.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animeheaven.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4"
+      ],
+      "contentLanguage": [
+        "sub"
+      ]
+    },
+    {
+      "id": "anipm",
+      "name": "AniPM",
+      "description": "AniList-native Ani.pm playback-bootstrap and Settlar session flow with real subtitle tracks and HLS source.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/anipm.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub"
+      ]
+    },
+    {
+      "id": "animesaga",
+      "name": "AnimeSaga",
+      "description": "AniList GraphQL episode mapping, source response XOR decoding, and direct HLS/MP4 stream extraction.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animesaga.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4",
+        "mkv"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub"
+      ]
+    },
+    {
+      "id": "anitusk",
+      "name": "Anitummy",
+      "description": "AniList-mapped Fast MegaPlay source resolver with AES-CBC response decryption, observed subtitles and HLS variants.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/anitusk.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub"
+      ]
+    },
+    {
+      "id": "animesalt",
+      "name": "AnimeSalt",
+      "description": "AniList title-mapped AnimeSalt Wordpress episode/server extraction with public MegaPlay AES-CBC and observed HLS/subtitles.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animesalt.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub",
+        "multi"
+      ]
+    },
+    {
+      "id": "fouranimo",
+      "name": "FourAnimo",
+      "description": "Zanix/FourAnimo AniList-mapped page-token episode API, M/R/ReCloud public sources and observed HLS/subtitles.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/fouranimo.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub"
+      ]
+    },
+    {
+      "id": "animotvslash",
+      "name": "AniMoTVSlash",
+      "description": "AniList title-mapped AniMoTVSlash episode and mirror-page extraction; returns only direct HLS/MP4 sources.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animotvslash.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub",
+        "soft-sub"
+      ]
+    },
+    {
+      "id": "anineko",
+      "name": "AniNeko",
+      "description": "AniList title-mapped AniNeko server-video extraction; only direct HLS/MP4 media sources are returned.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/anineko.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub",
+        "soft-sub",
+        "hardsub"
+      ]
+    },
+    {
+      "id": "animestream",
+      "name": "AnimeStream",
+      "description": "AniList title-mapped AnimeStream REST catalogue/episode and locale HLS endpoints; direct playlists only where no native key proxy is required.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animestream.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8"
+      ],
+      "contentLanguage": [
+        "ja",
+        "en",
+        "multi"
+      ]
+    },
+    {
+      "id": "animostream",
+      "name": "AniMoStream",
+      "description": "AniList title-mapped Animostream Blogger post/season data parsing and direct HLS/MP4 source extraction.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animostream.js",
+      "enabled": true,
+      "hasSettings": false,
+      "formats": [
+        "m3u8",
+        "mp4",
+        "mkv"
+      ],
+      "contentLanguage": [
+        "sub",
+        "dub",
+        "multi"
+      ]
+    },
+    {
+      "id": "anilab",
+      "name": "AniLab",
+      "description": "Disabled: provider playback requires Kyoto Player's official app request-signature integration; no signature impersonation is included.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/anilab.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
+    },
+    {
+      "id": "animepahe",
+      "name": "AnimePahe",
+      "description": "Disabled: current Kotlin flow depends on Cloudflare/session handling and native HLS/Kwik extractors; pending legitimate browser/session host support.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animepahe.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
+    },
+    {
+      "id": "animesogo",
+      "name": "AnimeSogo",
+      "description": "Disabled: Kotlin source delegates to the shared AnikotoTheme runtime, which is not included in this repository snapshot; port is pending the exact shared implementation.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animesogo.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
+    },
+    {
+      "id": "animesuge",
+      "name": "AnimeSuge",
+      "description": "Disabled: Kotlin source delegates to the shared AnikotoTheme runtime, which is not included in this repository snapshot; port is pending the exact shared implementation.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/animesuge.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
+    },
+    {
+      "id": "anisnatch",
+      "name": "AniSnatch",
+      "description": "Disabled: uses a site-config-derived custom request/response cipher and gzip binary framing; pending a fully tested QuickJS implementation.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/anisnatch.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
+    },
+    {
+      "id": "aniwave",
+      "name": "AniWave",
+      "description": "Disabled: depends on the upstream VRF/extractor chain and native HLS proxy; pending a host capability for those dependencies.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/aniwave.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
+    },
+    {
+      "id": "av1encodes",
+      "name": "AV1Encodes",
+      "description": "Disabled: current provider flow includes site verification/ad-check gates and native extractor dependencies; pending a legitimate session handoff.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/av1encodes.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
+    },
+    {
+      "id": "reanime",
+      "name": "ReAnime",
+      "description": "Disabled: playback relies on the native FlixProxyServer to rewrite streams/keys; pending a RAW host-side proxy capability.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/reanime.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
+    },
+    {
+      "id": "senshi",
+      "name": "Senshi",
+      "description": "Disabled: playback requires AES-GCM playlist handling plus a native stream proxy for segment/key requests; pending host support.",
+      "version": "1.0.0",
+      "author": "Unfiltered Raw",
+      "supportedTypes": [
+        "anime"
+      ],
+      "filename": "providers/anime/senshi.js",
+      "enabled": false,
+      "hasSettings": false,
+      "formats": [],
+      "contentLanguage": []
     }
   ]
 }
