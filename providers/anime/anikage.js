@@ -71,6 +71,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var id = String(anilistId || context.anilistId || context.aniListId || ""), ep = Number(episode || context.episodeNumber || context.episode || 0);
     if (!/^\d+$/.test(id) || Number(id) <= 0 || !Number.isFinite(ep) || ep <= 0) return [];
     var meta = await akMeta(id, context), mapped = context.providerMappings && context.providerMappings.anikage, slug = "";
+    console.log("[Anikage] resolve start AniList=" + id + " episode=" + ep + " aliases=" + meta.titles.length);
     if (mapped) slug = String(typeof mapped === "object" ? mapped.slug || mapped.id || "" : mapped);
     if (!slug) {
       // Search AniList title aliases concurrently; serial alias requests caused
@@ -88,13 +89,16 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
       var uniqueSlugs = searchResults.filter(Boolean).filter(function (value, index, all) { return all.indexOf(value) === index; });
       if (uniqueSlugs.length === 1) slug = uniqueSlugs[0];
     }
-    if (!slug) return [];
-    var episodes = await akJson(ANIKAGE_API + "/anime/" + encodeURIComponent(slug) + "/episodes", { headers: ANIKAGE_HEADERS }, 10000);
-    if (!Array.isArray(episodes)) return [];
-    var epItem = episodes.find(function (x) { return Number(x.number) === ep; }); if (!epItem) return [];
+    if (!slug) { console.log("[Anikage] no unique exact AniList title mapping for " + id); return []; }
+    var episodes = await akJson(ANIKAGE_API + "/anime/" + encodeURIComponent(slug) + "/episodes", { headers: ANIKAGE_HEADERS }, 8000);
+    if (!Array.isArray(episodes)) { console.log("[Anikage] episode endpoint returned a non-list for " + slug); return []; }
+    var epItem = episodes.find(function (x) { return Number(x.number) === ep; });
+    if (!epItem) { console.log("[Anikage] episode " + ep + " missing for " + slug + "; available=" + episodes.length); return []; }
     var epNum = String(epItem.number);
     var serverData = await akJson(ANIKAGE_API + "/anime/" + encodeURIComponent(slug) + "/episodes/" + encodeURIComponent(epNum) + "/servers", { headers: ANIKAGE_HEADERS }, 10000);
-    var servers = serverData && serverData.servers || []; if (!servers.length) return [];
+    var servers = serverData && serverData.servers || [];
+    if (!servers.length) { console.log("[Anikage] no servers returned for " + slug + " episode " + ep); return []; }
+    console.log("[Anikage] matched slug=" + slug + " episode=" + ep + " servers=" + servers.length);
     var preferredAudio = String(context.preferredAudio || "sub").toLowerCase();
     var audioOrder = preferredAudio === "dub" ? ["dub", "sub"] : ["sub", "dub"];
     var availableTypes = {};
@@ -172,6 +176,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
       for (var hj = 0; hj < hlsResults[hi].length; hj++) final.push(hlsResults[hi][hj]);
     }
     var dedup = {};
+    console.log("[Anikage] resolved " + final.length + " candidate(s) before dedupe for AniList=" + id + " episode=" + ep);
     return final.filter(function (c) {
       if (!c || !c.url || dedup[c.url]) return false;
       dedup[c.url] = true;
