@@ -66,7 +66,7 @@ async function alMegaPlay(embedUrl, lang, label) {
   var m = html.match(/data-id=["']([^"']+)["']/i) || html.match(/data-id=(\d+)/i);
   if (!m) return [];
   var mediaId = m[1], host = (embedUrl.match(/^https?:\/\/([^/]+)/i) || [,"megaplay.buzz"])[1];
-  var sources = await alJson("https://" + host + "/stream/getSources?id=" + encodeURIComponent(mediaId) + "&id=" + encodeURIComponent(mediaId),
+  var sources = await alJson("https://" + host + "/stream/getSources?id=" + encodeURIComponent(mediaId) + "&st=other",
     { headers: Object.assign({}, headers, { "Accept": "application/json,*/*" }) }, 10000);
   var file = sources && sources.sources && sources.sources.file;
   if (sources && sources.enc) file = await alDecryptMega(sources.enc) || file;
@@ -83,20 +83,38 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var meta = await alAniList(id, context), mapped = context.providerMappings && context.providerMappings.anilight, match = null;
     if (mapped) { var slug = typeof mapped === "object" ? mapped.slug || mapped.id : mapped; if (slug) match = { slug: String(slug), anilistId: id }; }
     if (!match) {
-      for (var i = 0; i < meta.titles.length && !match; i++) {
-        var list = await alJson(ANILIGHT_API + "/filter?page=1&search=" + encodeURIComponent(meta.titles[i]) + "&sort=POPULARITY_DESC", { headers: ANILIGHT_HEADERS }, 10000);
-        match = alExactItem(list && list.media || [], meta);
-      }
+      // Search the best AniList aliases concurrently rather than serially.
+      var titleResults = await Promise.all(meta.titles.slice(0, 4).map(async function (title) {
+        try {
+          var list = await alJson(ANILIGHT_API + "/filter?page=1&search=" + encodeURIComponent(title) + "&sort=POPULARITY_DESC",
+            { headers: ANILIGHT_HEADERS }, 6500);
+          return alExactItem(list && list.media || [], meta);
+        } catch (error) {
+          console.log("[AniLight] title search failed: " + String(error && error.message || error));
+          return null;
+        }
+      }));
+      var uniqueMatches = titleResults.filter(Boolean).filter(function (item, index, all) {
+        var slug = String(item.slug || item.id || "");
+        return all.findIndex(function (other) { return String(other.slug || other.id || "") === slug; }) === index;
+      });
+      if (uniqueMatches.length === 1) match = uniqueMatches[0];
     }
     if (!match || !match.slug) return [];
     var watch = await alJson(ANILIGHT_API + "/watch/" + encodeURIComponent(match.slug), { headers: ANILIGHT_HEADERS }, 10000);
     var episodes = watch && watch.episodes || [], epItem = episodes.find(function (x) { return Number(x.number) === ep; });
     if (!epItem) return [];
     var preference = String(context.preferredAudio || "sub").toLowerCase(), types = preference === "dub" ? ["dub", "sub"] : ["sub", "dub"], out = [];
-    for (var t = 0; t < types.length; t++) {
-      var lang = types[t], embed = epItem.embed_url && epItem.embed_url[lang];
-      if (embed) { try { out = out.concat(await alMegaPlay(embed, lang, "Episode " + ep)); } catch (_) {} }
-    }
+    var audioResults = await Promise.all(types.map(async function (lang) {
+      var embed = epItem.embed_url && epItem.embed_url[lang];
+      if (!embed) return [];
+      try { return await alMegaPlay(embed, lang, "Episode " + ep); }
+      catch (error) {
+        console.log("[AniLight] " + lang + " source failed: " + String(error && error.message || error));
+        return [];
+      }
+    }));
+    audioResults.forEach(function (items) { out = out.concat(items || []); });
     var seen = {}; return out.filter(function (c) { if (!c || !c.url || seen[c.url]) return false; seen[c.url] = true; return true; }).map(function (c) { c.anilistId = id; c.episodeNumber = ep; return c; });
   } catch (e) { console.log("[AniLight] " + String(e && e.message || e)); return []; }
 }
