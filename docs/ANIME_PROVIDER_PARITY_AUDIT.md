@@ -18,6 +18,8 @@ A provider is eligible for Kotlin-source removal only when all of the following 
 
 No provider is marked fully verified by this audit. This is a static comparison; it is not a claim of live endpoint or MPV playback validation.
 
+**Follow-up update (November 25, 2026):** StreamWish is now ported to the shared QuickJS runtime. The standalone Animostream plugin bundles the existing Synchrony 2.4.5.1 engine, applies it to the fetched `main.js` as static source, follows the Kotlin `rules` → `main`/`dmca` host selection, then unpacks the player script and extracts HLS variants/captions. CI and Android playback verification are pending.
+
 **Follow-up update (November 25, 2026):** The shared EmbedSeek port follows the Kotlin API route, AES-CBC payload decryption, subtitle mapping, HLS variants and direct-video source path. It is under mocked QuickJS contract testing and is not yet device-verified.
 
 **Follow-up update (November 25, 2026):** The Filemoon shared P.A.C.K.E.R. port is being developed on the follow-on branch `anime/shared-filemoon-extractor`. It includes a non-evaluating payload/token decoder, iframe fallback, subtitle JSON handling, and HLS track parsing; it remains pending CI and Android playback verification.
@@ -45,7 +47,7 @@ No provider is marked fully verified by this audit. This is a static comparison;
 | AniMoTVSlash | PORTED_WITH_GAPS | JS parses the WordPress episode/iframe flow and extracts direct HLS. Kotlin also has Filemoon, StreamWish, VidHide, and Vidara extractors, as well as additional iframe routes. |
 | AniNeko | PORTED_WITH_GAPS | JS parses server-video buttons and returns directly visible media. Kotlin also supports Dood/VidHide extraction and a loopback proxy for playlists and segments. |
 | AnimeStream | PORTED_WITH_GAPS | JS follows Kotlin's season pagination, retains main/alternate-audio/hard-sub playlist routes, preserves audio-group masters, and inspects nested HLS playlists. It fails closed when a playlist requires an external encrypted-key URI. Kotlin's local proxy rewrites playlist/segment/key URLs and decrypts keys with a media-ID-derived AES key; that native capability remains unported. |
-| Animostream | PORTED_WITH_GAPS | JS parses Blogger animeData/server arrays and directly visible media, and routes EmbedSeek AES-CBC, Abyss, Dood, StreamTape, VidMoly and Filemoon P.A.C.K.E.R. through shared extractors. StreamWish and Universal extractor parity remains incomplete. |
+| Animostream | PORTED_WITH_GAPS | JS parses Blogger animeData/server arrays and routes EmbedSeek AES-CBC, Abyss AES-CTR, StreamWish (Synchrony host selection + P.A.C.K.E.R.), Filemoon P.A.C.K.E.R., Dood, StreamTape and VidMoly through shared extractors. Universal WebView extraction remains a native-host gap. |
 
 ## Disabled providers
 
