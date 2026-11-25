@@ -73,10 +73,20 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var meta = await akMeta(id, context), mapped = context.providerMappings && context.providerMappings.anikage, slug = "";
     if (mapped) slug = String(typeof mapped === "object" ? mapped.slug || mapped.id || "" : mapped);
     if (!slug) {
-      for (var i = 0; i < meta.titles.length && !slug; i++) {
-        var page = await akJson(ANIKAGE_API + "/anime/browse?q=" + encodeURIComponent(meta.titles[i]) + "&sort=popularity&page=1&limit=25&adult=false", { headers: ANIKAGE_HEADERS }, 10000);
-        var item = akMatch(page && page.data || [], meta); if (item && item.slug) slug = String(item.slug);
-      }
+      // Search AniList title aliases concurrently; serial alias requests caused
+      // avoidable 20-30s waits when one spelling or edge was slow.
+      var searchResults = await Promise.all(meta.titles.slice(0, 4).map(async function (title) {
+        try {
+          var page = await akJson(ANIKAGE_API + "/anime/browse?q=" + encodeURIComponent(title) + "&sort=popularity&page=1&limit=25&adult=false", { headers: ANIKAGE_HEADERS }, 6500);
+          var item = akMatch(page && page.data || [], meta);
+          return item && item.slug ? String(item.slug) : "";
+        } catch (error) {
+          console.log("[Anikage] title search failed: " + String(error && error.message || error));
+          return "";
+        }
+      }));
+      var uniqueSlugs = searchResults.filter(Boolean).filter(function (value, index, all) { return all.indexOf(value) === index; });
+      if (uniqueSlugs.length === 1) slug = uniqueSlugs[0];
     }
     if (!slug) return [];
     var episodes = await akJson(ANIKAGE_API + "/anime/" + encodeURIComponent(slug) + "/episodes", { headers: ANIKAGE_HEADERS }, 10000);
@@ -90,38 +100,87 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var availableTypes = {};
     servers.forEach(function (s) { (s.subTypes || ["sub", "dub"]).forEach(function (x) { availableTypes[String(x).toLowerCase()] = true; }); });
     var types = audioOrder.filter(function (x) { return availableTypes[x]; });
-    var out = [], seen = {};
+    // Resolve each server/language source independently. This keeps slow servers
+    // from serially blocking better mirrors and makes the plugin's work bounded.
+    var sourceTasks = [];
     for (var si = 0; si < servers.length; si++) {
-      var server = servers[si]; if (!server || !server.id) continue;
+      var server = servers[si];
+      if (!server || !server.id) continue;
       var typesForServer = (server.subTypes || types).map(function (x) { return String(x).toLowerCase(); });
       for (var li = 0; li < types.length; li++) {
-        var lang = types[li]; if (typesForServer.indexOf(lang) < 0) continue;
-        var sourceUrl = ANIKAGE_API + "/anime/" + encodeURIComponent(slug) + "/episodes/" + encodeURIComponent(epNum) +
-          "/sources?provider=" + encodeURIComponent(server.id) + "&lang=" + encodeURIComponent(lang) + "&server=" + encodeURIComponent(server.id);
-        var data;
-        try { data = await akJson(sourceUrl, { headers: ANIKAGE_HEADERS }, 10000); } catch (_) { continue; }
-        var subtitles = (data.subtitles || []).map(function (s) {
-          var raw = s && (s.file || s.url); if (!raw) return null;
-          var u = akResolveProxy(raw, false); return /^https:\/\//i.test(u) ? { url: u, lang: s.label || "Unknown" } : null;
-        }).filter(Boolean);
-        (data.sources || []).forEach(function (src) {
-          if (!src || !src.url) return;
-          var isM3u8 = src.isM3U8 !== false, full = akResolveProxy(src.url, isM3u8);
-          var host = (full.match(/^https?:\/\/([^/]+)/i) || [,""])[1].toLowerCase();
-          if (["vivibebe.site", "echovideo.to", "krussdomi.com"].some(function (h) { return host === h || host.endsWith("." + h); })) return;
-          var label = String(server.id).toUpperCase() + " - " + lang.toUpperCase() + " - " + (src.quality || "Auto");
-          if (isM3u8) { if (!seen[full]) { seen[full] = true; out.push({ _url: full, _label: label, _lang: lang, _subs: subtitles, _headers: Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" }) }); } }
-          else { var direct = akCandidate(full, label, src.quality || "Auto", "mp4", lang, subtitles, ANIKAGE_HEADERS); if (direct) out.push(direct); }
-        });
+        var lang = types[li];
+        if (typesForServer.indexOf(lang) < 0) continue;
+        sourceTasks.push((async function (selectedServer, selectedLang) {
+          try {
+            var sourceUrl = ANIKAGE_API + "/anime/" + encodeURIComponent(slug) + "/episodes/" + encodeURIComponent(epNum) +
+              "/sources?provider=" + encodeURIComponent(selectedServer.id) + "&lang=" + encodeURIComponent(selectedLang) +
+              "&server=" + encodeURIComponent(selectedServer.id);
+            var data = await akJson(sourceUrl, { headers: ANIKAGE_HEADERS }, 7000);
+            var subtitles = (data.subtitles || []).map(function (s) {
+              var raw = s && (s.file || s.url);
+              if (!raw) return null;
+              var u = akResolveProxy(raw, false);
+              return /^https:\/\//i.test(u) ? { url: u, lang: s.label || "Unknown" } : null;
+            }).filter(Boolean);
+            var local = [];
+            (data.sources || []).forEach(function (src) {
+              if (!src || !src.url) return;
+              var isM3u8 = src.isM3U8 !== false;
+              var full = akResolveProxy(src.url, isM3u8);
+              var host = (full.match(/^https?:\/\/([^/]+)/i) || [,""])[1].toLowerCase();
+              if (["vivibebe.site", "echovideo.to", "krussdomi.com"].some(function (h) {
+                return host === h || host.endsWith("." + h);
+              })) return;
+              var label = String(selectedServer.id).toUpperCase() + " - " + selectedLang.toUpperCase() + " - " + (src.quality || "Auto");
+              if (isM3u8) {
+                if (/^https:\/\//i.test(full)) {
+                  local.push({ _url: full, _label: label, _lang: selectedLang, _subs: subtitles,
+                    _headers: Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" }) });
+                }
+              } else {
+                var direct = akCandidate(full, label, src.quality || "Auto", "mp4", selectedLang, subtitles, ANIKAGE_HEADERS);
+                if (direct) local.push(direct);
+              }
+            });
+            return local;
+          } catch (error) {
+            console.log("[Anikage] source lookup failed: " + String(error && error.message || error));
+            return [];
+          }
+        })(server, lang));
       }
     }
+
+    var taskResults = await Promise.all(sourceTasks);
+    var sourceEntries = [];
+    for (var tr = 0; tr < taskResults.length; tr++) {
+      for (var ti = 0; ti < taskResults[tr].length; ti++) sourceEntries.push(taskResults[tr][ti]);
+    }
+
+    var hlsTasks = sourceEntries.map(async function (entry) {
+      if (!entry || !entry._url) return entry ? [entry] : [];
+      try {
+        return await akHls(entry._url, entry._label, entry._lang, entry._subs, entry._headers);
+      } catch (error) {
+        console.log("[Anikage] HLS playlist failed: " + String(error && error.message || error));
+        return [];
+      }
+    });
+    var hlsResults = await Promise.all(hlsTasks);
     var final = [];
-    for (var k = 0; k < out.length; k++) {
-      if (out[k]._url) { try { final = final.concat(await akHls(out[k]._url, out[k]._label, out[k]._lang, out[k]._subs, out[k]._headers)); } catch (_) {} }
-      else final.push(out[k]);
+    for (var hi = 0; hi < hlsResults.length; hi++) {
+      for (var hj = 0; hj < hlsResults[hi].length; hj++) final.push(hlsResults[hi][hj]);
     }
     var dedup = {};
-    return final.filter(function (c) { if (!c || !c.url || dedup[c.url]) return false; dedup[c.url] = true; return true; }).map(function (c) { c.anilistId = id; c.episodeNumber = ep; return c; });
+    return final.filter(function (c) {
+      if (!c || !c.url || dedup[c.url]) return false;
+      dedup[c.url] = true;
+      return true;
+    }).map(function (c) {
+      c.anilistId = id;
+      c.episodeNumber = ep;
+      return c;
+    });
   } catch (e) { console.log("[Anikage] " + String(e && e.message || e)); return []; }
 }
 if (typeof globalThis !== "undefined") globalThis.getStreams = getStreams;
