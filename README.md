@@ -39,6 +39,11 @@ Anime has a separate contract:
 
 The same QuickJS engine and fetch bridge are used. The host must route anime through the anime argument contract and must validate candidate identity against the exact selected AniList title and episode. Do not pass a TMDB ID to an anime provider.
 
+
+## Anime port parity and Kotlin-source removal gate
+
+The JS anime providers are still being brought to behavior parity with their original Kotlin implementations. See [`docs/ANIME_PROVIDER_PARITY_AUDIT.md`](docs/ANIME_PROVIDER_PARITY_AUDIT.md) for the provider-by-provider gaps and the conditions required before any Kotlin source is removed. The Kotlin sources remain reference material until those gates pass.
+
 ## Current anime conversion scope
 
 The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScript ports; nine remain explicitly disabled until their native-only or security-sensitive dependencies have a supported RAW host integration.
@@ -56,12 +61,12 @@ The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScrip
 | AnimeHeaven | Exact title search → episode gate key → direct MP4/HLS | Only media URLs directly visible after the public gate request are emitted |
 | Ani.pm | AniList API → playback bootstrap → Settlar session → HLS + subtitles | Uses public session endpoints; no native local proxy is emulated |
 | AnimeSaga | AniList GraphQL → encrypted episodes/stream JSON → direct HLS/MP4 | Android local proxy and hoster-specific extractors are omitted |
-| Anitummy | AniList episode → Fast MegaPlay source API → AES-CBC decode → HLS + captions | Other native/Cloudflare hoster routes are omitted |
+| Anitummy | AniList episode → Fast MegaPlay + VidNest direct-media discovery + Kiwi/Net/Ally sub/dub stream APIs → direct HLS/MP4 + captions | Dood/VidHide hoster extraction and native HLS integration remain incomplete; Cloudflare/session-denied routes fail closed |
 | AnimeSalt | Exact AniList title → WordPress episode/server data → public MegaPlay or direct HLS/MP4 | Unsupported specialized hosters are omitted |
 | FourAnimo | AniList title mapping → page token/AJAX episode list → M/R/ReCloud source endpoint | Only observed direct HLS playlists are returned |
 | AniMoTVSlash | Exact title lookup → episode/mirror parsing → directly visible HLS | Specialized StreamWish/VidHide/Vidara extractors are not emulated |
 | AniNeko | Exact title lookup → episode/server buttons → directly visible HLS/MP4 | Native loopback proxy and specialized hoster extractors are not emulated |
-| AnimeStream | Exact title mapping → REST series/season/episode API → locale HLS | Streams requiring native encrypted-key proxying are omitted |
+| AnimeStream | Exact title mapping → paginated season/episode API → locale, alternate-audio and hard-sub HLS playlists | Streams requiring the native encrypted-key proxy are omitted |
 | Animostream | Exact title lookup → Blogger animeData season/server arrays → direct HLS/MP4 | Specialized hoster extractors are not emulated |
 
 The original Kotlin source files under `anime/providers/` remain unchanged. The JavaScript files are separate runtime ports, not a claim that every Android-only capability can be reproduced inside QuickJS.
