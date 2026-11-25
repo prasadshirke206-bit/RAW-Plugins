@@ -1124,7 +1124,7 @@
           var dmcaServers = streamWishServerList(cleanScript, "dmca");
           var mainServers = streamWishServerList(cleanScript, "main");
           var rulesServers = streamWishServerList(cleanScript, "rules");
-          var selectedServers = rulesServers.indexOf(embed.host) >= 0 ? mainServers : dmcaServers;
+          var selectedServers = rulesServers.indexOf(embed.hostname) >= 0 ? mainServers : dmcaServers;
           var destination = streamWishPick(selectedServers);
           if (!destination || /[\/@?#]/.test(destination)) continue;
 
