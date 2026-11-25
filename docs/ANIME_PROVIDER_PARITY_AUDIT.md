@@ -18,6 +18,8 @@ A provider is eligible for Kotlin-source removal only when all of the following 
 
 No provider is marked fully verified by this audit. This is a static comparison; it is not a claim of live endpoint or MPV playback validation.
 
+**Follow-up update (November 25, 2026):** The Filemoon shared P.A.C.K.E.R. port is being developed on the follow-on branch `anime/shared-filemoon-extractor`. It includes a non-evaluating payload/token decoder, iframe fallback, subtitle JSON handling, and HLS track parsing; it remains pending CI and Android playback verification.
+
 **Follow-up update (November 25, 2026):** PR #9 adds the shared Kotlin-compatible Abyss AES-CTR extractor to AnimeSalt and AniMoStream, including HLS/MP4/Sora, subtitle and legacy fallback handling. Its mocked QuickJS contract tests pass; both providers remain `PORTED_WITH_GAPS` until real-device playback is checked.
 
 ## Enabled providers
@@ -41,7 +43,7 @@ No provider is marked fully verified by this audit. This is a static comparison;
 | AniMoTVSlash | PORTED_WITH_GAPS | JS parses the WordPress episode/iframe flow and extracts direct HLS. Kotlin also has Filemoon, StreamWish, VidHide, and Vidara extractors, as well as additional iframe routes. |
 | AniNeko | PORTED_WITH_GAPS | JS parses server-video buttons and returns directly visible media. Kotlin also supports Dood/VidHide extraction and a loopback proxy for playlists and segments. |
 | AnimeStream | PORTED_WITH_GAPS | JS follows Kotlin's season pagination, retains main/alternate-audio/hard-sub playlist routes, preserves audio-group masters, and inspects nested HLS playlists. It fails closed when a playlist requires an external encrypted-key URI. Kotlin's local proxy rewrites playlist/segment/key URLs and decrypts keys with a media-ID-derived AES key; that native capability remains unported. |
-| Animostream | PORTED_WITH_GAPS | JS parses Blogger animeData/server arrays and directly visible media, and now routes Abyss, Dood, StreamTape and VidMoly through shared extractors. EmbedSeek, StreamWish, Filemoon and Universal extractor parity remains incomplete. |
+| Animostream | PORTED_WITH_GAPS | JS parses Blogger animeData/server arrays and directly visible media, and routes Abyss, Dood, StreamTape, VidMoly and Filemoon P.A.C.K.E.R. through shared extractors. EmbedSeek, StreamWish and Universal extractor parity remains incomplete. |
 
 ## Disabled providers
 
