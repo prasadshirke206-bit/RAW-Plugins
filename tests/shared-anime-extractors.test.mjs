@@ -387,3 +387,11 @@ test("Abyss legacy domain/id fallback remains available", async () => {
   assert.equal(candidates[0].name, "Abyss - Video");
   assert.equal(candidates[0].headers.Referer, "https://abyssplayer.com/?v=legacy");
 });
+
+
+test("AnimeSalt and Animostream route recognized Abyss hosts into the shared runtime", () => {
+  const animostream = fs.readFileSync(path.join(root, "providers/anime/animostream.js"), "utf8");
+  const animesalt = fs.readFileSync(path.join(root, "providers/anime/animesalt.js"), "utf8");
+  assert.match(animostream, /ext\.abyss\(u,/);
+  assert.match(animesalt, /abyssShared\.abyss\(azAbs\(u,page\)/);
+});
