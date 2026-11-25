@@ -18,6 +18,8 @@ A provider is eligible for Kotlin-source removal only when all of the following 
 
 No provider is marked fully verified by this audit. This is a static comparison; it is not a claim of live endpoint or MPV playback validation.
 
+**Follow-up update (November 25, 2026):** PR #9 adds the shared Kotlin-compatible Abyss AES-CTR extractor to AnimeSalt and AniMoStream, including HLS/MP4/Sora, subtitle and legacy fallback handling. Its mocked QuickJS contract tests pass; both providers remain `PORTED_WITH_GAPS` until real-device playback is checked.
+
 ## Enabled providers
 
 | Provider | Status | Kotlin behavior not fully represented by JS |
@@ -34,12 +36,12 @@ No provider is marked fully verified by this audit. This is a static comparison;
 | Ani.pm | PORTED_WITH_GAPS | JS reproduces playback bootstrap → Settlar session → embed session, key-proof header, subtitle extraction, and HLS parsing. Kotlin additionally sends videos and subtitle tracks through its local proxy; encrypted-key/playlist behavior must be proven equivalent or implemented natively. |
 | AnimeSaga | PORTED_WITH_GAPS | JS preserves AniList mapping and encrypted response parsing, but Kotlin has Dood/VidHide extraction, multiple provider-specific embed branches, and a loopback proxy that rewrites playlist/segment URLs. Direct-only JS candidates do not replace those paths. |
 | Anitummy (Anitusk) | PORTED_WITH_GAPS | JS now attempts Fast/MegaPlay, VidNest direct-media discovery, and both sub/dub on Kiwi (AnimePahe), Net (AnimeDao), and Ally (AllManga) API routes. Direct HLS/MP4 and visible captions are emitted. Protected Dood/VidHide/vidnest extractor branches and native HLS integration are still not equivalent; Cloudflare/session-denied routes fail closed. |
-| AnimeSalt | PORTED_WITH_GAPS | JS now handles episode/server-page parsing, public MegaPlay decryption, and the Kotlin AS-CDN/FirePlayer POST → HLS flow with observed quality variants. Abyss, Dood, Filemoon, StreamTape, Universal, and VidMoly extractor paths still require parity work; local playlist rewriting is not yet available. |
+| AnimeSalt | PORTED_WITH_GAPS | JS handles episode/server-page parsing, public MegaPlay decryption, the Kotlin AS-CDN/FirePlayer POST → HLS flow, and the shared Abyss AES-CTR extractor (HLS/MP4/Sora and subtitles). Dood, Filemoon, StreamTape and Universal hoster paths plus local playlist rewriting remain incomplete. |
 | FourAnimo / Zanix | PORTED_WITH_GAPS | JS handles page token, AJAX episode lookup, and the public M/R/ReCloud embed flow. Kotlin additionally rewrites playlists and segments through FourAnimoHlsServer, including special segment handling and referer forwarding. |
 | AniMoTVSlash | PORTED_WITH_GAPS | JS parses the WordPress episode/iframe flow and extracts direct HLS. Kotlin also has Filemoon, StreamWish, VidHide, and Vidara extractors, as well as additional iframe routes. |
 | AniNeko | PORTED_WITH_GAPS | JS parses server-video buttons and returns directly visible media. Kotlin also supports Dood/VidHide extraction and a loopback proxy for playlists and segments. |
 | AnimeStream | PORTED_WITH_GAPS | JS follows Kotlin's season pagination, retains main/alternate-audio/hard-sub playlist routes, preserves audio-group masters, and inspects nested HLS playlists. It fails closed when a playlist requires an external encrypted-key URI. Kotlin's local proxy rewrites playlist/segment/key URLs and decrypts keys with a media-ID-derived AES key; that native capability remains unported. |
-| Animostream | PORTED_WITH_GAPS | JS parses Blogger animeData/server arrays and directly visible media. Kotlin additionally supports Abyss, EmbedSeek, StreamWish, StreamTape, Dood, Filemoon, and Universal extractors. |
+| Animostream | PORTED_WITH_GAPS | JS parses Blogger animeData/server arrays and directly visible media, and now routes Abyss, Dood, StreamTape and VidMoly through shared extractors. EmbedSeek, StreamWish, Filemoon and Universal extractor parity remains incomplete. |
 
 ## Disabled providers
 
