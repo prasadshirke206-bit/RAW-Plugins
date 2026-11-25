@@ -63,8 +63,8 @@ function loadExtractors(fetchImpl, withSynchrony = false) {
     const exportRegex = /export\{([A-Za-z_$][\w$]*) as Deobfuscator,([A-Za-z_$][\w$]*) as Transformer\};/;
     const match = exportRegex.exec(synchronySource);
     assert.ok(match, "Synchrony Deobfuscator export must exist");
-    const program = synchronySource.replace(match[0],
-      "globalThis.RAW_SYNCHRONY = { Deobfuscator: " + match[1] + ", Transformer: " + match[2] + " };");
+    const program = synchronySource.replace(exportRegex, (_all, deobfuscator, transformer) =>
+      "globalThis.RAW_SYNCHRONY = { Deobfuscator: " + deobfuscator + ", Transformer: " + transformer + " };");
     vm.runInContext(program, context, { filename: synchronyPath, timeout: 15000 });
   }
   return context.RAWAnimeExtractors;
@@ -75,8 +75,8 @@ test("standalone provider bundles stay synchronized with shared and Synchrony so
   const exportRegex = /export\{([A-Za-z_$][\w$]*) as Deobfuscator,([A-Za-z_$][\w$]*) as Transformer\};/;
   const match = exportRegex.exec(synchronySource);
   assert.ok(match, "Synchrony Deobfuscator export must exist");
-  const program = synchronySource.replace(match[0],
-    "root.RAW_SYNCHRONY = { Deobfuscator: " + match[1] + ", Transformer: " + match[2] + " };");
+  const program = synchronySource.replace(exportRegex, (_all, deobfuscator, transformer) =>
+    "root.RAW_SYNCHRONY = { Deobfuscator: " + deobfuscator + ", Transformer: " + transformer + " };");
   const expectedSynchrony = synchronyStartMarker + "\n(function (root) {\n" +
     program + "\n})(globalThis);\n" + synchronyEndMarker;
 
@@ -817,7 +817,7 @@ test("StreamWish normalizes /f/ links to streamwish.com without running page Jav
   const extractors = loadExtractors(async (url, options = {}) => {
     const value = String(url);
     calls.push({ url: value, options });
-    if (value === "https://streamwish.com/short-id") {
+    if (value === "https://streamwish.com/shortid") {
       return response(packed, { url: value });
     }
     if (value === "https://cdn.example/streamwish/master.m3u8") {
@@ -830,14 +830,14 @@ test("StreamWish normalizes /f/ links to streamwish.com without running page Jav
     throw new Error("Unexpected StreamWish request " + value);
   });
 
-  const candidates = await extractors.streamwish("https://morencius.com/f/short-id", {
+  const candidates = await extractors.streamwish("https://morencius.com/f/shortid", {
     provider: "animostream",
     anilistId: "21",
     episodeNumber: 8,
     referer: "https://www.animostream.xyz/"
   });
 
-  assert.equal(calls[0].url, "https://streamwish.com/short-id");
+  assert.equal(calls[0].url, "https://streamwish.com/shortid");
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0].url, "https://cdn.example/streamwish/720/index.m3u8");
   assert.equal(candidates[0].quality, "720p");
