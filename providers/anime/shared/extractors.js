@@ -747,7 +747,7 @@
     }
 
     var selector = radix > 62 ? 95 : radix > 54 ? 62 : radix > 52 ? 54 : 52;
-    var alphabet95 = " !\"#$%&\\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_" +
+    var alphabet95 = " !\"#$%&\\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\\\]^_" +
       String.fromCharCode(96) + "abcdefghijklmnopqrstuvwxyz{|}~";
     var alphabets = {
       52: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP",
