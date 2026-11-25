@@ -62,7 +62,7 @@ The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScrip
 | Ani.pm | AniList API → playback bootstrap → Settlar session → HLS + subtitles | Uses public session endpoints; no native local proxy is emulated |
 | AnimeSaga | AniList GraphQL → encrypted episodes/stream JSON → direct HLS/MP4 | Android local proxy and hoster-specific extractors are omitted |
 | Anitummy | AniList episode → Fast MegaPlay + VidNest direct-media discovery + Kiwi/Net/Ally sub/dub stream APIs → direct HLS/MP4 + captions | Dood/VidHide hoster extraction and native HLS integration remain incomplete; Cloudflare/session-denied routes fail closed |
-| AnimeSalt | Exact AniList title → WordPress episode/server data → MegaPlay + AS-CDN/FirePlayer POST → HLS variants | Abyss, Dood, Filemoon, StreamTape, VidMoly and Universal extractor paths remain incomplete |
+| AnimeSalt | Exact AniList title → WordPress episode/server data → MegaPlay + AS-CDN/FirePlayer POST → HLS variants (mocked contract tests included) | Abyss, Dood, Filemoon, StreamTape, VidMoly and Universal extractor paths remain incomplete |
 | FourAnimo | AniList title mapping → page token/AJAX episode list → M/R/ReCloud source endpoint | Only observed direct HLS playlists are returned |
 | AniMoTVSlash | Exact title lookup → episode/mirror parsing → directly visible HLS | Specialized StreamWish/VidHide/Vidara extractors are not emulated |
 | AniNeko | Exact title lookup → episode/server buttons → directly visible HLS/MP4 | Native loopback proxy and specialized hoster extractors are not emulated |
