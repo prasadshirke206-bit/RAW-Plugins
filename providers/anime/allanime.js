@@ -49,37 +49,72 @@ function aaBase64(bytes) {
 }
 async function aaGetKeys() {
   if (ALLANIME_KEY_CACHE && Date.now() < ALLANIME_KEY_CACHE_EXPIRES) return ALLANIME_KEY_CACHE;
-  if (typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined") throw new Error("QuickJS WebCrypto AES-GCM is required");
-  var page = await (await aaFetch(ALLANIME_SITE, { headers: ALLANIME_HEADERS }, 9000)).text();
-  var epochMatch = page.match(/"epoch"\s*:\s*(\d+)/);
-  var partBMatch = page.match(/"partB"\s*:\s*"([^"]+)"/);
-  var appUrlMatch = page.match(/https?:\/\/[^"' \t\r\n]+\/entry\/app\.[A-Za-z0-9_.-]+\.js/i);
-  if (!epochMatch || !partBMatch || !appUrlMatch) throw new Error("AllAnime epoch, partB or entry bundle was not found");
-  var appUrl = appUrlMatch[0];
-  var appBundle = await (await aaFetch(appUrl, { headers: ALLANIME_HEADERS }, 9000)).text();
-  var cdnRoot = appUrl.split("/entry/")[0];
-  var chunkRegex = /["']\.\.\/chunks\/([^"']+\.js)["']/g;
-  var chunkNames = [], chunkMatch;
-  while ((chunkMatch = chunkRegex.exec(appBundle)) !== null && chunkNames.length < 5) {
-    if (chunkNames.indexOf(chunkMatch[1]) < 0) chunkNames.push(chunkMatch[1]);
+  if (typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined") {
+    throw new Error("QuickJS WebCrypto AES-GCM is required");
   }
-  if (!chunkNames.length) throw new Error("AllAnime entry bundle did not expose key chunks");
-  var maskHex = "";
-  for (var i = 0; i < chunkNames.length && !maskHex; i++) {
+
+  var page = await (await aaFetch(ALLANIME_SITE, {
+    headers: Object.assign({}, ALLANIME_HEADERS, { "Accept": "text/html,application/xhtml+xml" })
+  }, 8000)).text();
+
+  // Current MKissa publishes the crypto bootstrap object and its app entry bundle
+  // under Svelte's /all/mk/_app/immutable path. Keep the older inline fields as
+  // a fallback because edge caches can serve slightly different HTML snapshots.
+  var configText = (page.match(/window\.__aaCrypto\s*=\s*(\{[^<;]+\})/) || [,""])[1];
+  var config = {};
+  if (configText) {
+    try { config = JSON.parse(configText); } catch (_) { config = {}; }
+  }
+  var epochInline = (page.match(/"epoch"\s*:\s*(\d+)/) || [,""])[1];
+  var partBInline = (page.match(/"partB"\s*:\s*"([^"]+)"/) || [,""])[1];
+  var epochValue = config && config.epoch != null ? config.epoch : epochInline;
+  var partBValue = config && typeof config.partB === "string" ? config.partB : partBInline;
+  var appUrl = (page.match(/https:\/\/cdn\.(?:mkissa\.net|allanime\.day)\/all\/mk\/_app\/immutable\/entry\/app\.[^"' <>\r\n]+\.js/i) || [,""])[0];
+
+  if (!epochValue || !partBValue || !appUrl) {
+    throw new Error("AllAnime crypto bootstrap incomplete: epoch=" + !!epochValue +
+      " partB=" + !!partBValue + " appBundle=" + !!appUrl);
+  }
+
+  var appBundle = await (await aaFetch(appUrl, {
+    headers: Object.assign({}, ALLANIME_HEADERS, { "Accept": "text/javascript,*/*;q=0.8" })
+  }, 8000)).text();
+
+  var chunkMatches = appBundle.match(/\.\.\/chunks\/[^"',\]\s]+\.js/g) || [];
+  var chunkPaths = chunkMatches.filter(function (value, index, all) {
+    return all.indexOf(value) === index;
+  }).slice(0, 8);
+  if (!chunkPaths.length) throw new Error("AllAnime app entry exposed no crypto chunks");
+
+  // Probe the small entry chunk set concurrently: sequential bundle downloads
+  // previously consumed most of the provider's resolution budget.
+  var chunkBodies = await Promise.all(chunkPaths.map(async function (chunkPath) {
     try {
-      var chunk = await (await aaFetch(cdnRoot + "/chunks/" + chunkNames[i], { headers: ALLANIME_HEADERS }, 8000)).text();
-      var maskMatch = chunk.match(/[0-9a-f]{64}/i);
-      if (maskMatch) maskHex = maskMatch[0];
-    } catch (_) {}
+      var chunkUrl = new URL(chunkPath, appUrl).toString();
+      return await (await aaFetch(chunkUrl, {
+        headers: Object.assign({}, ALLANIME_HEADERS, { "Accept": "text/javascript,*/*;q=0.8" })
+      }, 6500)).text();
+    } catch (_) {
+      return "";
+    }
+  }));
+
+  var maskHex = "";
+  for (var i = 0; i < chunkBodies.length && !maskHex; i++) {
+    var maskMatch = chunkBodies[i].match(/[0-9a-f]{64}/i);
+    if (maskMatch) maskHex = maskMatch[0];
   }
-  if (!maskHex) throw new Error("AllAnime key mask was not found in its entry chunks");
-  var partB = aaB64Bytes(partBMatch[1]);
+  if (!maskHex) throw new Error("AllAnime dynamic key mask was not found in entry chunks");
+
+  var partB = aaB64Bytes(partBValue);
   if (partB.length !== 32) throw new Error("AllAnime partB must decode to 32 bytes");
   var mask = new Uint8Array(32), key = new Uint8Array(32);
   for (var j = 0; j < 32; j++) mask[j] = parseInt(maskHex.slice(j * 2, j * 2 + 2), 16);
   for (var k = 0; k < 32; k++) key[k] = mask[k] ^ partB[k];
-  ALLANIME_KEY_CACHE = { key: key, epoch: epochMatch[1] };
+
+  ALLANIME_KEY_CACHE = { key: key, epoch: String(epochValue) };
   ALLANIME_KEY_CACHE_EXPIRES = Date.now() + 180000;
+  console.log("[AllAnime] dynamic crypto bootstrap ready; epoch=" + epochValue);
   return ALLANIME_KEY_CACHE;
 }
 async function aaBuildRequestToken(keys) {
