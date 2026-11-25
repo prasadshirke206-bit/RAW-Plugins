@@ -941,7 +941,7 @@
             : languageKey.toLowerCase() === "hi"
               ? "Hindi"
               : languageKey.toUpperCase();
-          if (/^https:\/\//i.test(fullSubUrl)) subtitles.push({ url: fullSubUrl, lang: lang });
+          if (/^https?:\/\//i.test(fullSubUrl)) subtitles.push({ url: fullSubUrl, lang: lang });
         }
       }
 
@@ -971,8 +971,7 @@
         return fallback ? [fallback] : [];
       }
 
-      var type = /\.mp4(?:$|[?#])/i.test(mediaUrl) ? "mp4" : "mp4";
-      var direct = candidate(options, mediaUrl, "EmbedSeek - Video", "Auto", type, streamHeaders, subtitles);
+      var direct = candidate(options, mediaUrl, "EmbedSeek - Video", "Auto", "mp4", streamHeaders, subtitles);
       return direct ? [direct] : [];
     } catch (error) {
       if (options.log) options.log("[EmbedSeek] " + String(error && error.message || error));
