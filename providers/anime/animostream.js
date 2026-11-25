@@ -536,10 +536,17 @@
     if (!url) return [];
     try {
       var parsed = await hlsCandidates(url, options, label, headers, subtitles);
-      if (parsed.length) return parsed;
+      if (parsed.length) {
+        for (var i = 0; i < parsed.length; i++) {
+          parsed[i].name = label + " (" + parsed[i].quality + ")";
+          parsed[i].title = parsed[i].name;
+        }
+        return parsed;
+      }
     } catch (_) {}
+    var fallbackTitle = label === "Abyss" ? "Abyss - Auto" : label + " (Auto)";
     var fallback = candidate(
-      options, url, label + " (Auto)", "Auto", "m3u8", headers, subtitles
+      options, url, fallbackTitle, "Auto", "m3u8", headers, subtitles
     );
     return fallback ? [fallback] : [];
   }
