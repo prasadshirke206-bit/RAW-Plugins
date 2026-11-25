@@ -117,8 +117,8 @@ test("Net77 fails closed until a user-completed verification handoff exists", as
   assert.match(provider.description, /user-completed.*verification.*session handoff/i);
 
   const source = fs.readFileSync(path.join(root, provider.filename), "utf8");
-  assert.doesNotMatch(source, /g-recaptcha-response\\s*=/i);
-  assert.doesNotMatch(source, /function\\s+generateUUID\\s*\\(/);
+  assert.doesNotMatch(source, /g-recaptcha-response\s*=/i);
+  assert.doesNotMatch(source, /function\s+generateUUID\s*\(/);
 
   let networkCalls = 0;
   const context = {
