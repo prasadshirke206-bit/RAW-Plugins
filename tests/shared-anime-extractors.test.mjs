@@ -63,7 +63,7 @@ function loadExtractors(fetchImpl, withSynchrony = false) {
     const exportRegex = /export\{([A-Za-z_$][\w$]*) as Deobfuscator,([A-Za-z_$][\w$]*) as Transformer\};/;
     const match = exportRegex.exec(synchronySource);
     assert.ok(match, "Synchrony Deobfuscator export must exist");
-    const program = synchronySource.replace(exportRegex, (_all, deobfuscator, transformer) =>
+    const program = synchronySource.trimEnd().replace(exportRegex, (_all, deobfuscator, transformer) =>
       "globalThis.RAW_SYNCHRONY = { Deobfuscator: " + deobfuscator + ", Transformer: " + transformer + " };");
     vm.runInContext(program, context, { filename: synchronyPath, timeout: 15000 });
   }
@@ -75,7 +75,7 @@ test("standalone provider bundles stay synchronized with shared and Synchrony so
   const exportRegex = /export\{([A-Za-z_$][\w$]*) as Deobfuscator,([A-Za-z_$][\w$]*) as Transformer\};/;
   const match = exportRegex.exec(synchronySource);
   assert.ok(match, "Synchrony Deobfuscator export must exist");
-  const program = synchronySource.replace(exportRegex, (_all, deobfuscator, transformer) =>
+  const program = synchronySource.trimEnd().replace(exportRegex, (_all, deobfuscator, transformer) =>
     "root.RAW_SYNCHRONY = { Deobfuscator: " + deobfuscator + ", Transformer: " + transformer + " };");
   const expectedSynchrony = synchronyStartMarker + "\n(function (root) {\n" +
     program + "\n})(globalThis);\n" + synchronyEndMarker;
