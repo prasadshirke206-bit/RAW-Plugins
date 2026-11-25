@@ -60,7 +60,7 @@ function loadExtractors(fetchImpl, withSynchrony = false) {
   const context = vm.createContext(sandbox);
   vm.runInContext(sharedSource, context, { filename: sharedPath, timeout: 4000 });
   if (withSynchrony) {
-    const exportRegex = /export\{([A-Za-z_$][\\w$]*) as Deobfuscator,([A-Za-z_$][\\w$]*) as Transformer\\};/;
+    const exportRegex = /export\{([A-Za-z_$][\w$]*) as Deobfuscator,([A-Za-z_$][\w$]*) as Transformer\};/;
     const match = exportRegex.exec(synchronySource);
     assert.ok(match, "Synchrony Deobfuscator export must exist");
     const program = synchronySource.replace(match[0],
