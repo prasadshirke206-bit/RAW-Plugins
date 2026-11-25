@@ -515,9 +515,9 @@ test("Animostream routes Filemoon links into the shared extractor", () => {
 
 
 test("Filemoon P.A.C.K.E.R. supports the Kotlin radix-95 alphabet", async () => {
-  const symbols = Array(36).fill("").concat("https://media.example/radix95.m3u8").join("|");
+  const symbols = Array(37).fill("").concat("https://media.example/radix95.m3u8").join("|");
   const packed = '<script>eval(function(p,a,c,k,e,d){return p;}(' +
-    '\'({file:"D"})\',95,37,\'' + symbols + '\'.split(\'|\'),0,{}))</script>';
+    '\'({file:"D"})\',95,38,\'' + symbols + '\'.split(\'|\'),0,{}))</script>';
   const extractors = loadExtractors(async (url) => {
     const value = String(url);
     if (value === "https://filemoon.sx/e/radix95") return response(packed, { url: value });
