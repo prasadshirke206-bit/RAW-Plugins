@@ -193,13 +193,25 @@ async function aaFindShow(meta, context) {
     if (mappedId) return { _id: String(mappedId), name: meta.titles[0] || "AniList anime" };
   }
   var query = "query ($search: SearchInput, $limit: Int, $page: Int, $translationType: VaildTranslationTypeEnumType, $countryOrigin: VaildCountryOriginEnumType) { shows(search: $search, limit: $limit, page: $page, translationType: $translationType, countryOrigin: $countryOrigin) { edges { _id name englishName nativeName thumbnail slugTime } } }";
-  for (var i = 0; i < meta.titles.length; i++) {
-    var result = await aaGraphql({ variables: { search: { query: meta.titles[i], allowAdult: false, allowUnknown: false }, limit: 26, page: 1, translationType: "sub", countryOrigin: "ALL" }, query: query });
-    var edges = result && result.data && result.data.shows && result.data.shows.edges || [];
+  var titles = (meta.titles || []).filter(Boolean).slice(0, 4);
+  var searches = await Promise.all(titles.map(async function (title) {
+    try {
+      var result = await aaGraphql({
+        variables: { search: { query: title, allowAdult: false, allowUnknown: false }, limit: 26, page: 1, translationType: "sub", countryOrigin: "ALL" },
+        query: query
+      });
+      return result && result.data && result.data.shows && result.data.shows.edges || [];
+    } catch (error) {
+      console.log("[AllAnime] title search failed for alias: " + String(error && error.message || error));
+      return [];
+    }
+  }));
+  var matches = [];
+  searches.forEach(function (edges) {
     var match = aaIdentityMatch(edges, meta);
-    if (match) return match;
-  }
-  return null;
+    if (match && match._id && !matches.some(function (item) { return String(item._id) === String(match._id); })) matches.push(match);
+  });
+  return matches.length === 1 ? matches[0] : null;
 }
 function aaResolve(base, path) { try { return new URL(path, base).toString(); } catch (_) { return path; } }
 function aaQuality(height) {
@@ -273,31 +285,57 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var ep = Number(episode || context.episodeNumber || context.episode || 0);
     if (!/^\d+$/.test(id) || Number(id) <= 0 || !Number.isFinite(ep) || ep <= 0) return [];
     var meta = await aaAniListMeta(id, context);
+    console.log("[AllAnime] resolve start AniList=" + id + " episode=" + ep + " aliases=" + meta.titles.length);
     var show = await aaFindShow(meta, context);
-    if (!show || !show._id) return [];
+    if (!show || !show._id) {
+      console.log("[AllAnime] no unique exact-title catalogue mapping for AniList=" + id);
+      return [];
+    }
     var detail = await aaGraphql({ variables: { _id: String(show._id) }, query: "query ($_id: String!) { show(_id: $_id) { _id availableEpisodesDetail } }" });
     var available = detail && detail.data && detail.data.show && detail.data.show.availableEpisodesDetail || {};
     var audioOrder = String(context.preferredAudio || "sub").toLowerCase() === "dub" ? ["dub", "sub"] : ["sub", "dub"];
     var languages = audioOrder.filter(function (lang) { return (available[lang] || []).some(function (n) { return String(n) === String(ep); }); });
-    if (!languages.length) return [];
+    if (!languages.length) {
+      console.log("[AllAnime] episode " + ep + " is not listed by translation type for mapped show " + show._id);
+      return [];
+    }
     var iframeEndpoint = ALLANIME_IFRAME;
     try { var ver = await aaJson(ALLANIME_SITE + "/getVersion", { headers: ALLANIME_HEADERS }, 5000); if (ver && ver.episodeIframeHead) iframeEndpoint = ver.episodeIframeHead; } catch (_) {}
     var keys = await aaGetKeys();
     var aaReqToken = await aaBuildRequestToken(keys);
-    var out = [];
-    for (var a = 0; a < languages.length; a++) {
-      var lang = languages[a], variables = { showId: String(show._id), episodeString: String(ep), translationType: lang };
+    var languagePayloads = await Promise.all(languages.map(async function (lang) {
+      var variables = { showId: String(show._id), episodeString: String(ep), translationType: lang };
       var extensions = { persistedQuery: { version: 1, sha256Hash: ALLANIME_STREAM_HASH }, aaReq: aaReqToken };
       var url = ALLANIME_API + "?variables=" + encodeURIComponent(JSON.stringify(variables)) + "&extensions=" + encodeURIComponent(JSON.stringify(extensions));
-      var payload = await aaJson(url, { headers: Object.assign({}, ALLANIME_HEADERS, { "Origin": ALLANIME_SITE, "Referer": ALLANIME_SITE + "/" }) }, 12000);
+      try {
+        return { lang: lang, payload: await aaJson(url, {
+          headers: Object.assign({}, ALLANIME_HEADERS, { "Origin": ALLANIME_SITE, "Referer": ALLANIME_SITE + "/" })
+        }, 10000) };
+      } catch (error) {
+        console.log("[AllAnime] " + lang + " episode request failed: " + String(error && error.message || error));
+        return { lang: lang, payload: null };
+      }
+    }));
+    var out = [];
+    for (var a = 0; a < languagePayloads.length; a++) {
+      var lang = languagePayloads[a].lang, payload = languagePayloads[a].payload;
+      if (!payload) continue;
       var sources = payload && payload.data && payload.data.episode && payload.data.episode.sourceUrls;
       var encrypted = payload && payload.data && payload.data.tobeparsed;
       if (!sources && encrypted) {
-        var decrypted = JSON.parse(await aaDecryptPayload(encrypted));
-        sources = decrypted && decrypted.episode && decrypted.episode.sourceUrls;
-        if (!sources && decrypted && decrypted.data && decrypted.data.episode) sources = decrypted.data.episode.sourceUrls;
+        try {
+          var decrypted = JSON.parse(await aaDecryptPayload(encrypted));
+          sources = decrypted && decrypted.episode && decrypted.episode.sourceUrls;
+          if (!sources && decrypted && decrypted.data && decrypted.data.episode) sources = decrypted.data.episode.sourceUrls;
+        } catch (error) {
+          console.log("[AllAnime] " + lang + " encrypted source payload failed: " + String(error && error.message || error));
+          continue;
+        }
       }
-      if (!Array.isArray(sources)) continue;
+      if (!Array.isArray(sources)) {
+        console.log("[AllAnime] " + lang + " episode response contained no source list");
+        continue;
+      }
       for (var s = 0; s < sources.length; s++) {
         var item = sources[s] || {}, sourceUrl = aaDecryptSource(item.sourceUrl), name = String(item.sourceName || "AllAnime");
         if (!sourceUrl) continue;
@@ -308,6 +346,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
         }
       }
     }
+    console.log("[AllAnime] resolved " + out.length + " direct candidate(s) for AniList=" + id + " episode=" + ep);
     var seen = {};
     return out.filter(function (c) { if (!c || !c.url || seen[c.url]) return false; seen[c.url] = true; return true; }).map(function (c) { c.anilistId = id; c.episodeNumber = ep; return c; });
   } catch (e) { console.log("[AllAnime] " + String(e && e.message || e)); return []; }
