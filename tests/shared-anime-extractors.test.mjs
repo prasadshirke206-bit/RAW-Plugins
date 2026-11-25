@@ -512,3 +512,32 @@ test("Animostream routes Filemoon links into the shared extractor", () => {
   const source = fs.readFileSync(path.join(root, "providers/anime/animostream.js"), "utf8");
   assert.match(source, /ext\.filemoon\(u,/);
 });
+
+
+test("Filemoon P.A.C.K.E.R. supports the Kotlin radix-95 alphabet", async () => {
+  const symbols = Array(36).fill("").concat("https://media.example/radix95.m3u8").join("|");
+  const packed = '<script>eval(function(p,a,c,k,e,d){return p;}(' +
+    '\'({file:"D"})\',95,37,\'' + symbols + '\'.split(\'|\'),0,{}))</script>';
+  const extractors = loadExtractors(async (url) => {
+    const value = String(url);
+    if (value === "https://filemoon.sx/e/radix95") return response(packed, { url: value });
+    if (value === "https://media.example/radix95.m3u8") {
+      return response([
+        "#EXTM3U",
+        "#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360",
+        "360/index.m3u8"
+      ].join("\n"));
+    }
+    throw new Error("Unexpected Filemoon request " + value);
+  });
+
+  const candidates = await extractors.filemoon("https://filemoon.sx/e/radix95", {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 12
+  });
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].url, "https://media.example/360/index.m3u8");
+  assert.equal(candidates[0].quality, "360p");
+});
