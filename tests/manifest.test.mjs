@@ -110,7 +110,7 @@ test("package and manifest release versions stay aligned", () => {
   assert.equal(packageJson.version, manifest.version);
 });
 
-test("Net77 fails closed until a user-completed verification handoff exists", () => {
+test("Net77 fails closed until a user-completed verification handoff exists", async () => {
   const provider = manifest.providers.find((item) => item.id === "net77");
   assert.ok(provider, "Net77 remains registered");
   assert.equal(provider.enabled, false);
@@ -119,5 +119,19 @@ test("Net77 fails closed until a user-completed verification handoff exists", ()
   const source = fs.readFileSync(path.join(root, provider.filename), "utf8");
   assert.doesNotMatch(source, /g-recaptcha-response\\s*=/i);
   assert.doesNotMatch(source, /function\\s+generateUUID\\s*\\(/);
-  assert.match(source, /async function getSessionCookie\\(\\)\\s*\\{\\s*return null;\\s*\\}/);
+
+  let networkCalls = 0;
+  const context = {
+    module: { exports: {} },
+    console: { log() {}, warn() {}, error() {} },
+    fetch: async () => { networkCalls += 1; throw new Error("network must not be called"); },
+    setTimeout,
+    clearTimeout,
+    URL,
+    URLSearchParams
+  };
+  vm.runInNewContext(source, context, { filename: provider.filename, timeout: 2000 });
+  const streams = await context.module.exports.getStreams("603", "movie", 1, 1, { title: "Example" });
+  assert.deepEqual(Array.from(streams), []);
+  assert.equal(networkCalls, 0, "the provider must stop before any network request");
 });
