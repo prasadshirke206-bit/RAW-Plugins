@@ -45,7 +45,16 @@ Populate `globalThis.__CALL_ARGS__` with the same anime identity and context. Re
     "anikage": { "slug": "provider-specific-slug" },
     "anikoto": { "url": "https://provider.example/watch/provider-slug" },
     "anilight": { "slug": "provider-specific-slug" },
-    "miruro": { "mirror": "https://www.miruro.tv" }
+    "miruro": { "mirror": "https://www.miruro.tv" },
+    "anikura": { "url": "provider-specific-watch-url" },
+    "anikuro": { "id": "provider-specific-id" },
+    "animeheaven": { "url": "provider-specific-anime-url" },
+    "animesalt": { "url": "provider-specific-anime-url" },
+    "fouranimo": { "url": "provider-specific-anime-url" },
+    "anineko": { "url": "provider-specific-anime-url" },
+    "animotvslash": { "url": "provider-specific-anime-url" },
+    "animostream": { "url": "provider-specific-post-url" },
+    "animestream": { "contentId": "provider-specific-content-id" }
   }
 }
 ```
@@ -98,3 +107,22 @@ Repository tests can verify manifest, syntax and invocation contracts. They cann
 Miruro's JS port follows the original pipe contract for exact AniList episode matching, source/subtype lookup, XOR+gzip response decoding, dynamic stream-proxy configuration and subtitle parsing. It returns only observed direct HLS source records, routed through the configured Miruro stream relay.
 
 The port deliberately does not reproduce the Kotlin extension's browser-fingerprint spoofing, cookie warm-up sequence, or Cloudflare/WAF workarounds. A 403/challenge response is a hard failure: RAW should offer a normal browser/session verification handoff rather than changing request fingerprints or trying to evade the challenge. The original Android Universal/MegaCloud/RapidCloud embed extractors and local M3U8 relay also remain native-only; embed pages are not treated as playable streams.
+
+## Newly ported direct-flow providers
+
+Thirteen additional provider entrypoints now use the AniList invocation contract: AniChan, AniKura, AniKuro, AnimeHeaven, Ani.pm, AnimeSaga, Anitummy, AnimeSalt, FourAnimo/Zanix, AniMoTVSlash, AniNeko, AnimeStream and Animostream. They use exact AniList ID plus episode binding, and only emit observed direct HLS/MP4 media records. Their website title matching is allowed only when it produces a unique exact alias match; use validated `providerMappings` where the app already has a real provider ID or canonical page URL.
+
+## Disabled providers and native integration blockers
+
+Nine entries are present but disabled. RAW must respect their manifest flag and must not invoke or display them as active providers:
+
+- **AniLab:** requires official Kyoto Player request signing; the JS provider does not impersonate the official app.
+- **AnimePahe:** current Kotlin path includes Cloudflare/session handling and native HLS/Kwik extraction.
+- **AnimeSogo / AnimeSuge:** their source classes inherit shared `AnikotoTheme` logic absent from the uploaded source snapshot.
+- **AniSnatch:** its site-config-derived request and response cipher plus gzip framing still needs an exact tested QuickJS port.
+- **AniWave:** depends on a VRF/extractor chain and native HLS proxy.
+- **AV1Encodes:** depends on site verification/ad-check and native extractors.
+- **ReAnime:** requires the Kotlin FlixProxyServer to rewrite stream and key URLs.
+- **Senshi:** requires AES-GCM media parsing plus a native segment/key proxy.
+
+A disabled provider must remain unavailable until its required capability is implemented and tested. Browser challenges must be completed by the user through a normal browser handoff; do not spoof fingerprints, synthesize challenge tokens, or evade CAPTCHA/verification.
