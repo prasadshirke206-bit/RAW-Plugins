@@ -682,7 +682,7 @@
     {
       "id": "animostream",
       "name": "AniMoStream",
-      "description": "AniList title-mapped Animostream Blogger data with shared EmbedSeek AES-CBC, Abyss AES-CTR, P.A.C.K.E.R.-based Filemoon, Dood, StreamTape and VidMoly extraction plus direct HLS/MP4.",
+      "description": "AniList-mapped Animostream Blogger source with shared EmbedSeek AES-CBC, Abyss AES-CTR, StreamWish Synchrony/P.A.C.K.E.R., Filemoon P.A.C.K.E.R., Dood, StreamTape, VidMoly and direct HLS/MP4.",
       "version": "1.0.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
