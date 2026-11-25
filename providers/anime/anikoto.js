@@ -142,7 +142,7 @@ async function koResolveEmbed(embed, label, lang) {
 }
 async function koTrySearch(base, title) {
   var url = base + "/filter?keyword=" + encodeURIComponent(title) + "&page=1&vrf=" + koVrfEncrypt(title);
-  var html = await (await koFetch(url, { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": base + "/" }) }, 10000)).text();
+  var html = await (await koFetch(url, { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": base + "/" }) }, 6000)).text();
   var anchors = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [], matches = [];
   for (var i = 0; i < anchors.length; i++) { var tag = anchors[i].match(/^<a\b[^>]*>/i), href = tag ? koAttr(tag[0], "href") : "", text = koText(anchors[i]); if (href && /\/watch\//i.test(href) && koExactTitle(text, { titles: [title] })) matches.push(koAbs(base, href).split("?")[0]); }
   matches = matches.filter(function (x, i) { return matches.indexOf(x) === i; });
@@ -158,8 +158,25 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     if (mapped) { var mv = typeof mapped === "object" ? mapped.url || mapped.slug || "" : String(mapped); if (mv) animeUrl = /^https?:\/\//i.test(mv) ? mv : ANIKOTO_MIRRORS[0] + (mv.charAt(0) === "/" ? "" : "/") + mv; }
     var baseUsed = ANIKOTO_MIRRORS[0];
     if (!animeUrl) {
-      for (var b = 0; b < ANIKOTO_MIRRORS.length && !animeUrl; b++) {
-        for (var t = 0; t < meta.titles.length && !animeUrl; t++) { try { animeUrl = await koTrySearch(ANIKOTO_MIRRORS[b], meta.titles[t]); if (animeUrl) baseUsed = ANIKOTO_MIRRORS[b]; } catch (_) {} }
+      // Probe mirrors in parallel for each canonical AniList alias. The old nested
+      // loop could spend 10s per mirror and routinely outlive the player request.
+      for (var t = 0; t < Math.min(meta.titles.length, 3) && !animeUrl; t++) {
+        var mirrorResults = await Promise.all(ANIKOTO_MIRRORS.map(async function (base) {
+          try {
+            var found = await koTrySearch(base, meta.titles[t]);
+            return found ? { base: base, url: found } : null;
+          } catch (_) { return null; }
+        }));
+        var validResults = mirrorResults.filter(Boolean);
+        var pathKeys = validResults.map(function (r) {
+          return r.url.replace(/^https?:\/\/[^/]+/i, "").replace(/\/$/, "").toLowerCase();
+        }).filter(function (value, index, all) { return all.indexOf(value) === index; });
+        // Mirror copies of the same exact title share a watch path. Refuse
+        // ambiguous cross-site matches rather than binding the wrong anime.
+        if (pathKeys.length === 1 && validResults.length) {
+          animeUrl = validResults[0].url;
+          baseUsed = validResults[0].base;
+        }
       }
     }
     if (!animeUrl) return [];
@@ -187,13 +204,34 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     }
     var preferred = String(context.preferredAudio || "sub").toLowerCase();
     servers.sort(function (a, b) { return (a.type === preferred ? -1 : 0) - (b.type === preferred ? -1 : 0); });
-    var out = [];
-    for (var s = 0; s < servers.length; s++) {
-      var server = servers[s], embed = server.id;
-      if (!/^https?:\/\//i.test(embed)) {
-        try { var sr = await koJson(baseUsed + "/ajax/server?get=" + encodeURIComponent(server.id), { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": animeUrl, "X-Requested-With": "XMLHttpRequest", "Accept": "application/json,*/*" }) }, 8000); embed = sr && sr.result && sr.result.url || ""; } catch (_) { continue; }
+    // Resolve independent server embeds concurrently; one slow mirror no longer
+    // serially delays every other source for this episode.
+    var serverTasks = servers.map(async function (server) {
+      try {
+        var embed = server.id;
+        if (!/^https?:\/\//i.test(embed)) {
+          var sr = await koJson(baseUsed + "/ajax/server?get=" + encodeURIComponent(server.id), {
+            headers: Object.assign({}, ANIKOTO_HEADERS, {
+              "Referer": animeUrl,
+              "X-Requested-With": "XMLHttpRequest",
+              "Accept": "application/json,*/*"
+            })
+          }, 6000);
+          embed = sr && sr.result && sr.result.url || "";
+        }
+        if (!embed) return [];
+        return await koResolveEmbed(embed, "Episode " + ep + " - " + server.name, server.type);
+      } catch (error) {
+        console.log("[Anikoto] server failed: " + String(error && error.message || error));
+        return [];
       }
-      if (embed) out = out.concat(await koResolveEmbed(embed, "Episode " + ep + " - " + server.name, server.type));
+    });
+    var serverResults = await Promise.all(serverTasks);
+    var out = [];
+    for (var srIndex = 0; srIndex < serverResults.length; srIndex++) {
+      for (var candidateIndex = 0; candidateIndex < serverResults[srIndex].length; candidateIndex++) {
+        out.push(serverResults[srIndex][candidateIndex]);
+      }
     }
     // Mapper results are supplementary. Only direct public URLs are resolved.
     if (malId && mapperSlug && timestamp) {
