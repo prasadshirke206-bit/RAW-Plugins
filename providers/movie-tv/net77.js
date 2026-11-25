@@ -21,8 +21,6 @@
    CONFIG BLOCK: If site changes domain, update ONLY the URLs in this block.
    ========================================================================= */
 var BASE_URL = 'https://net77.cc';
-var VERIFY_BASE = 'https://net52.cc';
-var VERIFY_URL = VERIFY_BASE + '/verify.php';
 var DEFAULT_API_BASE = 'https://tv.imgcdn.kim';
 var TMDB_PROXY_URL = 'https://db.wecollege.net/3';
 /* ========================================================================= */
@@ -30,7 +28,7 @@ var TMDB_PROXY_URL = 'https://db.wecollege.net/3';
 var DEFAULT_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0',
     'Accept': 'application/json, text/plain, */*',
-    'Referer': VERIFY_BASE + '/'
+    'Referer': BASE_URL + '/'
 };
 
 var OTT_PLATFORMS = [
@@ -49,8 +47,6 @@ var API_DISCOVERY_HOSTS = [
     'https://mobidetect.xyz'
 ];
 
-var cachedCookie = null;
-var cachedCookieExpiry = 0;
 var cachedApiBase = DEFAULT_API_BASE;
 
 function safeFetch(url, options, timeoutMs) {
@@ -331,7 +327,7 @@ async function searchAndResolveOtt(ott, meta, isMovie, season, episode, cookie) 
         'Cookie': cookie || '',
         'Usertoken': rawCookie,
         'Lastep': '',
-        'Referer': VERIFY_BASE + '/'
+        'Referer': BASE_URL + '/'
     };
 
     var q1 = cleanTitle(meta.title);
@@ -481,7 +477,7 @@ async function searchAndResolveOtt(ott, meta, isMovie, season, episode, cookie) 
             var plRes = await safeFetch(pJson.video_link, {
                 headers: {
                     'User-Agent': DEFAULT_HEADERS['User-Agent'],
-                    'Referer': VERIFY_BASE + '/',
+                    'Referer': BASE_URL + '/',
                     'Cookie': cookie || ''
                 }
             });
@@ -513,7 +509,7 @@ async function searchAndResolveOtt(ott, meta, isMovie, season, episode, cookie) 
             language: playlistInfo.primaryTag,
             headers: {
                 'User-Agent': DEFAULT_HEADERS['User-Agent'],
-                'Referer': VERIFY_BASE + '/',
+                'Referer': BASE_URL + '/',
                 'Cookie': cookie || ''
             },
             subtitles: playlistInfo.subs
