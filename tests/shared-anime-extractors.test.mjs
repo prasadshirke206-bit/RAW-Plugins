@@ -848,14 +848,14 @@ test("StreamWish fails closed when the Synchrony runtime or player payload is un
   const mainJs = 'var dmca = ["dmca-cdn.example"]; var main = ["main-cdn.example"]; var rules = ["streamwish.com"];';
   const noSynchrony = loadExtractors(async (url) => {
     requests++;
-    if (String(url) === "https://streamwish.com/abc") {
+    if (String(url) === "https://streamwish.com/watch-page") {
       return response('<script src="/assets/main.js"></script>', { url: String(url) });
     }
     if (String(url) === "https://streamwish.com/assets/main.js") return response(mainJs);
     throw new Error("Unexpected request " + url);
   });
 
-  assert.deepEqual(Array.from(await noSynchrony.streamwish("https://streamwish.com/e/abc", {
+  assert.deepEqual(Array.from(await noSynchrony.streamwish("https://streamwish.com/watch-page", {
     provider: "animostream",
     anilistId: "21",
     episodeNumber: 1
