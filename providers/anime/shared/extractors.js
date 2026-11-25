@@ -866,17 +866,9 @@
       }
 
       var host = new URL(playlistPageUrl).host;
-      var streamHeaders = {
-        "Referer": "https://" + host + "/",
-        "Origin": "https://" + host
-      };
-      var prefix = "FileMoon - ";
-      var videos = await hlsCandidates(masterUrl, options, prefix, streamHeaders, subtitles);
-      if (!videos.length) {
-        var fallback = candidate(options, masterUrl, prefix + "Auto", "Auto", "m3u8", streamHeaders, subtitles);
-        if (fallback) videos.push(fallback);
-      }
-      return videos;
+      var streamHeaders = { "Referer": "https://" + host + "/" };
+      var prefix = "FileMoon -";
+      return await hlsCandidates(masterUrl, options, prefix, streamHeaders, subtitles);
     } catch (error) {
       if (options.log) options.log("[Filemoon] " + String(error && error.message || error));
       return [];
