@@ -605,7 +605,7 @@ test("EmbedSeek decrypts Kotlin AES-CBC payload and returns exact HLS variants/s
     item.quality === "720p" &&
     item.name === "EmbedSeek - 720p"
   ));
-  assert.ok(candidates.every((item) => item.provider === "animestream"));
+  assert.ok(candidates.every((item) => item.provider === "animostream"));
   assert.ok(candidates.every((item) => item.anilistId === "21" && item.episodeNumber === 77));
   assert.ok(candidates.every((item) =>
     item.subtitles.some((sub) => sub.url === "https://animostream.embedseek.online/subs/embedseek-en.vtt" && sub.lang === "English") &&
