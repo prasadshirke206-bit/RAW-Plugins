@@ -12,7 +12,7 @@ const existingMovieTvIds = [
   "bingr", "movy", "4khdhub", "hdhub4u", "bollyflix",
   "cinevood", "freekz", "net77", "uhdmovies", "vegamovies"
 ];
-const animeIds = ["allanime", "anikage", "anikoto", "anilight"];
+const animeIds = ["allanime", "anikage", "anikoto", "anilight", "miruro"];
 
 test("manifest retains the existing QuickJS movie/TV contract", () => {
   assert.equal(manifest.id, "raw-plugins");
@@ -53,7 +53,7 @@ test("movie/TV provider catalogue entries remain intact", () => {
   }
 });
 
-test("exactly four anime providers are registered in the anime folder", () => {
+test("exactly five anime providers are registered in the anime folder", () => {
   const anime = manifest.providers.filter((provider) => provider.supportedTypes.includes("anime"));
   assert.deepEqual(anime.map((provider) => provider.id).sort(), animeIds.slice().sort());
   for (const provider of anime) {

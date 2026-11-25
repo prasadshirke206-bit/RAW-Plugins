@@ -41,7 +41,7 @@ The same QuickJS engine and fetch bridge are used. The host must route anime thr
 
 ## Current anime conversion scope
 
-The four JavaScript entrypoints are behavioural ports of the original provider sources:
+The five JavaScript entrypoints are behavioural ports of the original provider sources:
 
 | Provider | Implemented in QuickJS | Known host/runtime boundary |
 |---|---|---|
@@ -49,6 +49,7 @@ The four JavaScript entrypoints are behavioural ports of the original provider s
 | Anikage | AniList title mapping, browse/detail/episode/server/source requests, Koto/Rai routes, proxy token resolution, HLS variants and subtitles | Hosts requiring the original Android loopback HLS relay are omitted |
 | Anikoto | VRF search transform, AJAX episode/server flow, mapper results, MegaPlay AES-CBC source parsing, HLS variants and subtitles | Does not forge expiring CDN HMAC tokens or solve browser challenges; those streams need a host/native resolver |
 | AniLight | AniList-backed API lookup, episode matching, public MegaPlay embed, AES-CBC source parsing, HLS variants and subtitles | Non-MegaPlay routes relying on WebView/Turnstile require a host-provided browser capability; QuickJS does not emulate that browser |
+| Miruro | AniList episode matching, secure-pipe envelope and XOR/gzip response decoding, provider/subtype fallback, rotating proxy configuration, direct HLS relay URLs and source subtitle tracks | Uses ordinary HTTP requests and fails closed on WAF/Cloudflare denial. Android-only embed extractors and local HLS relay are not emulated |
 
 The original Kotlin source files under `anime/providers/` remain unchanged. The JavaScript files are separate runtime ports, not a claim that every Android-only capability can be reproduced inside QuickJS.
 
