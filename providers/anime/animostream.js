@@ -753,7 +753,7 @@
     }
 
     var selector = radix > 62 ? 95 : radix > 54 ? 62 : radix > 52 ? 54 : 52;
-    var alphabet95 = " !\"#$%&\\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\\\]^_" +
+    var alphabet95 = " !\"#$%&\\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_" +
       String.fromCharCode(96) + "abcdefghijklmnopqrstuvwxyz{|}~";
     var alphabets = {
       52: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP",
@@ -815,7 +815,7 @@
         return /eval/i.test(block) && /m3u8/i.test(block);
       }) || "";
 
-      var playlistPageUrl = finalPageUrl;
+      var playlistPageUrl = pageUrl;
       if (!script) {
         var iframe = (html.match(/<iframe\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1/i) || [,"",""])[2];
         if (!iframe) return [];
@@ -823,7 +823,7 @@
         if (!iframeUrl || !/^https?:\/\//i.test(iframeUrl)) return [];
         var iframeResponse = await request(iframeUrl, pageHeaders, 12000);
         html = await iframeResponse.text();
-        playlistPageUrl = iframeResponse.url || iframeUrl;
+        playlistPageUrl = iframeUrl;
         script = (html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || []).map(function (block) {
           return (block.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i) || [,""])[1];
         }).find(function (block) {
