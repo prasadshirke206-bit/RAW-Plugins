@@ -554,7 +554,7 @@
     {
       "id": "anitusk",
       "name": "Anitummy",
-      "description": "AniList-mapped Fast MegaPlay source resolver with AES-CBC response decryption, observed subtitles and HLS variants.",
+      "description": "AniList-mapped Fast MegaPlay, VidNest direct-media, and Kiwi/Net/Ally public sub/dub route resolver with AES-CBC MegaPlay decryption, direct HLS/MP4 and observed captions. Protected hoster extraction and Cloudflare-only routes remain unsupported.",
       "version": "1.0.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
@@ -661,7 +661,7 @@
     {
       "id": "animestream",
       "name": "AnimeStream",
-      "description": "AniList title-mapped AnimeStream REST catalogue/episode and locale HLS endpoints; direct playlists only where no native key proxy is required.",
+      "description": "AniList title-mapped AnimeStream REST season/episode resolver with locale, alternate-audio and hard-sub playlist support; fails closed for HLS variants requiring the native encrypted-key proxy.",
       "version": "1.0.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
