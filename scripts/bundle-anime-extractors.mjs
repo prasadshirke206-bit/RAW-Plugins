@@ -38,16 +38,16 @@ for (const relativePath of targets) {
   if (!pattern.test(current)) {
     throw new Error("Missing shared-extractor markers in " + relativePath);
   }
-  let updated = current.replace(pattern, block);
+  let updated = current.replace(pattern, () => block);
 
   if (relativePath === "providers/anime/animostream.js") {
     const synchronyPattern = new RegExp(
       escapeRegExp(synchronyStart) + "[\\s\\S]*?" + escapeRegExp(synchronyEnd)
     );
     if (synchronyPattern.test(updated)) {
-      updated = updated.replace(synchronyPattern, synchronyBlock);
+      updated = updated.replace(synchronyPattern, () => synchronyBlock);
     } else {
-      updated = updated.replace(end, end + "\n" + synchronyBlock);
+      updated = updated.replace(end, () => end + "\n" + synchronyBlock);
     }
   }
 
