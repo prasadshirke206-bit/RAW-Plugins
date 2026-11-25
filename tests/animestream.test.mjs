@@ -116,7 +116,7 @@ test("AnimeStream returns main, alternate audio, and hard-sub playlist variants"
   assert.ok(candidates.every((x) => x.headers.Referer === BASE + "/"));
   assert.ok(candidates.every((x) => x.headers["User-Agent"] === EXPECTED_UA));
 
-  const playlistCalls = calls.filter((x) => x.url.indexOf("/hls/") >= 0);
+  const playlistCalls = calls.filter((x) => x.url.indexOf(BASE + "/hls/") === 0);
   assert.equal(playlistCalls.length, 3);
   assert.ok(playlistCalls.every((x) =>
     x.options.headers["Accept"].indexOf("application/vnd.apple.mpegurl") >= 0
