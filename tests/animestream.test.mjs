@@ -24,9 +24,10 @@ function response(value, status = 200) {
 }
 
 function loadProvider(fetchImpl) {
+  const logs = [];
   const sandbox = {
     module: { exports: {} },
-    console: { log() {}, warn() {}, error() {} },
+    console: { log(...args) { logs.push(args.map(String).join(" ")); }, warn(...args) { logs.push(args.map(String).join(" ")); }, error(...args) { logs.push(args.map(String).join(" ")); } },
     fetch: fetchImpl,
     setTimeout,
     clearTimeout,
@@ -43,7 +44,9 @@ function loadProvider(fetchImpl) {
     JSON
   };
   vm.runInNewContext(source, sandbox, { filename, timeout: 4000 });
-  return sandbox.module.exports.getStreams;
+  const getStreams = sandbox.module.exports.getStreams;
+  getStreams.__logs = logs;
+  return getStreams;
 }
 
 function playlist() {
@@ -100,7 +103,7 @@ test("AnimeStream returns main, alternate audio, and hard-sub playlist variants"
 
   const candidates = await getStreams("16498", "anime", 1, 1, context);
 
-  assert.equal(candidates.length, 3);
+  assert.equal(candidates.length, 3, JSON.stringify({ candidates, calls, logs: getStreams.__logs }));
   assert.ok(candidates.some((x) => x.url === BASE + "/hls/jp/main.m3u8"));
   assert.ok(candidates.some((x) => x.url === BASE + "/hls/jp/hardsub-en.m3u8"));
   assert.ok(candidates.some((x) => x.url === BASE + "/hls/en/main.m3u8"));
@@ -138,7 +141,7 @@ test("AnimeStream checks child variant playlists and rejects native-key proxy de
   const getStreams = loadProvider(baseApiFetch(calls, overrides));
   const candidates = await getStreams("16498", "anime", 1, 1, context);
 
-  assert.equal(candidates.length, 2);
+  assert.equal(candidates.length, 2, JSON.stringify({ candidates, calls, logs: getStreams.__logs }));
   assert.ok(!candidates.some((x) => x.url === BASE + "/hls/jp/main.m3u8"));
   assert.ok(candidates.some((x) => x.url === BASE + "/hls/jp/hardsub-en.m3u8"));
   assert.ok(candidates.some((x) => x.url === BASE + "/hls/en/main.m3u8"));
@@ -161,7 +164,7 @@ test("AnimeStream preserves alternate audio masters rather than stripping their 
   const candidates = await getStreams("16498", "anime", 1, 1, context);
   const jpMain = candidates.find((x) => x.url === BASE + "/hls/jp/main.m3u8");
 
-  assert.ok(jpMain);
+  assert.ok(jpMain, JSON.stringify({ candidates, calls, logs: getStreams.__logs }));
   assert.equal(jpMain.quality, "Auto");
   assert.ok(calls.some((x) => x.url === BASE + "/hls/jp/audio/ja.m3u8"));
 });
@@ -218,7 +221,7 @@ test("AnimeStream follows Kotlin's paginated season episode list", async () => {
   });
 
   const candidates = await getStreams("16498", "anime", 1, 21, context);
-  assert.equal(candidates.length, 1);
+  assert.equal(candidates.length, 1, JSON.stringify({ candidates, calls, logs: getStreams.__logs }));
   assert.ok(calls.some((x) => x.url === BASE + "/api/v1/season/season-1/episodes?limit=20&page=2"));
   assert.ok(calls.some((x) => x.url === BASE + "/api/v1/episode/episode-21/media/hls/ja-JP"));
   assert.equal(candidates[0].episodeNumber, 21);
