@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 
 const existingMovieTvIds = [
   "bingr", "movy", "4khdhub", "hdhub4u", "bollyflix",
@@ -103,4 +104,20 @@ test("anime QuickJS scripts parse and expose a fail-closed getStreams entrypoint
     const missingEpisode = await context.module.exports.getStreams("16498", "anime", 1, 0, {});
     assert.deepEqual(Array.from(missingEpisode), []);
   }
+});
+
+test("package and manifest release versions stay aligned", () => {
+  assert.equal(packageJson.version, manifest.version);
+});
+
+test("Net77 fails closed until a user-completed verification handoff exists", () => {
+  const provider = manifest.providers.find((item) => item.id === "net77");
+  assert.ok(provider, "Net77 remains registered");
+  assert.equal(provider.enabled, false);
+  assert.match(provider.description, /user-completed.*verification.*session handoff/i);
+
+  const source = fs.readFileSync(path.join(root, provider.filename), "utf8");
+  assert.doesNotMatch(source, /g-recaptcha-response\\s*=/i);
+  assert.doesNotMatch(source, /function\\s+generateUUID\\s*\\(/);
+  assert.match(source, /async function getSessionCookie\\(\\)\\s*\\{\\s*return null;\\s*\\}/);
 });
