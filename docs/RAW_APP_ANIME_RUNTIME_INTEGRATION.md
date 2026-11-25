@@ -126,3 +126,9 @@ Nine entries are present but disabled. RAW must respect their manifest flag and 
 - **Senshi:** requires AES-GCM media parsing plus a native segment/key proxy.
 
 A disabled provider must remain unavailable until its required capability is implemented and tested. Browser challenges must be completed by the user through a normal browser handoff; do not spoof fingerprints, synthesize challenge tokens, or evade CAPTCHA/verification.
+
+## Proposed native WebView stream resolver
+
+The remaining UniversalExtractor-dependent routes need an Android host capability; QuickJS cannot create or control an Android WebView. The proposed ABI, request validation, lifecycle/cancellation rules, intercepted media URL classification, player-only activation, challenge handoff and acceptance tests are specified in [RAW_APP_ANIME_WEBVIEW_BRIDGE_SPEC.md](RAW_APP_ANIME_WEBVIEW_BRIDGE_SPEC.md).
+
+This is a host-integration proposal, not an implemented capability. Until the RAW Android app exposes and device-tests the bridge, provider scripts must return no candidate for UniversalExtractor-only embeds. Never return the embed page itself or run arbitrary plugin-supplied JavaScript inside the WebView.
