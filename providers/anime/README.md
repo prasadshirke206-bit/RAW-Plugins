@@ -39,7 +39,7 @@ The app must compare `anilistId` and `episodeNumber` against the active playback
 - `animotvslash.js` — AniMoTVSlash mirror parsing and directly visible HLS.
 - `anineko.js` — AniNeko server buttons and directly visible HLS/MP4.
 - `animestream.js` — AnimeStream REST catalogue/episode APIs and locale HLS.
-- `animostream.js` — Animostream Blogger animeData, shared Abyss/Dood/StreamTape/VidMoly extraction and direct HLS/MP4.
+- `animostream.js` — Animostream Blogger animeData, shared Abyss/Dood/StreamTape/VidMoly/Filemoon P.A.C.K.E.R. extraction and direct HLS/MP4.
 - `anilab.js`, `animepahe.js`, `animesogo.js`, `animesuge.js`, `anisnatch.js`, `aniwave.js`, `av1encodes.js`, `reanime.js`, `senshi.js` — disabled fail-closed entries pending the host integrations documented in the runtime guide.
 
 See `docs/RAW_APP_ANIME_RUNTIME_INTEGRATION.md` for the host requirements and known limitations.
