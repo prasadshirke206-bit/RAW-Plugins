@@ -880,7 +880,112 @@
     }
   }
 
+
+  function embedSeekHexBytes(value) {
+    var hex = String(value || "").trim();
+    if (!hex || hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) return null;
+    var bytes = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+  }
+
+  async function embedseek(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var sourceUrl = String(url);
+      var id;
+      if (sourceUrl.indexOf("#") >= 0) {
+        id = sourceUrl.substring(sourceUrl.indexOf("#") + 1).split("&")[0];
+      } else if (sourceUrl.indexOf("id=") >= 0) {
+        id = sourceUrl.substring(sourceUrl.indexOf("id=") + 3).split("&")[0];
+      } else {
+        id = sourceUrl.substring(sourceUrl.lastIndexOf("/") + 1).split("?")[0].split("#")[0];
+      }
+      if (!id) return [];
+
+      var apiUrl = "https://animostream.embedseek.online/api/v1/video?id=" + id +
+        "&w=1920&h=1080&r=www.animostream.xyz";
+      var requestHeaders = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": String(options.referer || "https://www.animostream.xyz/")
+      };
+      var response = await request(apiUrl, requestHeaders, 12000);
+      var hexData = String(await response.text() || "").trim();
+      var encrypted = embedSeekHexBytes(hexData);
+      if (!encrypted) return [];
+      if (!root.crypto || !root.crypto.subtle) return [];
+
+      var keyBytes = utf8Bytes("kiemtienmua911ca");
+      var ivBytes = utf8Bytes("1234567890oiuytr");
+      var key = await root.crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["decrypt"]);
+      var plaintext = await root.crypto.subtle.decrypt({ name: "AES-CBC", iv: ivBytes }, key, encrypted);
+      var data;
+      try {
+        data = JSON.parse(bytesToUtf8(new Uint8Array(plaintext)));
+      } catch (_) {
+        return [];
+      }
+      if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+
+      var subtitles = [];
+      var subtitleObject = data.subtitle;
+      if (subtitleObject && typeof subtitleObject === "object" && !Array.isArray(subtitleObject)) {
+        var languageKeys = Object.keys(subtitleObject);
+        for (var i = 0; i < languageKeys.length; i++) {
+          var languageKey = languageKeys[i];
+          var subPath = String(subtitleObject[languageKey] || "");
+          if (!subPath.trim()) continue;
+          var fullSubUrl = /^https?:\/\//i.test(subPath)
+            ? subPath
+            : "https://animostream.embedseek.online" + subPath.split("#")[0];
+          var lang = languageKey.toLowerCase() === "en"
+            ? "English"
+            : languageKey.toLowerCase() === "hi"
+              ? "Hindi"
+              : languageKey.toUpperCase();
+          if (/^https?:\/\//i.test(fullSubUrl)) subtitles.push({ url: fullSubUrl, lang: lang });
+        }
+      }
+
+      var mediaUrl = String(data.source || "").trim();
+      if (!mediaUrl) mediaUrl = String(data.hlsVideoTiktok || "").trim();
+      if (!mediaUrl) mediaUrl = String(data.cf || "").trim();
+      if (!mediaUrl) return [];
+
+      var streamHeaders = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://animostream.embedseek.online/"
+      };
+
+      if (/\.m3u8(?:$|[?#])/i.test(mediaUrl)) {
+        var videos;
+        try {
+          videos = await hlsCandidates(
+            mediaUrl, options, "EmbedSeek -", streamHeaders, subtitles
+          );
+        } catch (_) {
+          videos = [];
+        }
+        if (videos && videos.length) return videos;
+        var fallback = candidate(
+          options, mediaUrl, "EmbedSeek - Auto", "Auto", "m3u8", streamHeaders, subtitles
+        );
+        return fallback ? [fallback] : [];
+      }
+
+      var direct = candidate(options, mediaUrl, "EmbedSeek - Video", "Auto", "mp4", streamHeaders, subtitles);
+      return direct ? [direct] : [];
+    } catch (error) {
+      if (options.log) options.log("[EmbedSeek] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
   root.RAWAnimeExtractors = {
+    embedseek: embedseek,
     filemoon: filemoon,
     abyss: abyss,
     dood: dood,
