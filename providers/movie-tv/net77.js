@@ -9,7 +9,7 @@
  *
  * Features:
  *  - Dynamic NewTV API endpoint resolution via mobiledetects network with automatic fallback.
- *  - Automatic 72-hour session handshake bypassing Cloudflare Turnstile barriers with self-healing retry.
+ *  - Requires a host-owned, user-completed verification/session handoff; fails closed until that exists.
  *  - Adaptive HLS Master Playlist (.m3u8) streaming with up to 22 multi-audio tracks.
  *  - Complete WebVTT subtitle extraction across over 30 languages.
  *  - Paginated episode discovery supporting arbitrary season and episode depths (>10 episodes).
@@ -74,14 +74,6 @@ function safeFetch(url, options, timeoutMs) {
     });
 }
 
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0;
-        var v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-
 /**
  * Discovers current live NewTV API base if DEFAULT_API_BASE fails.
  */
@@ -112,39 +104,12 @@ async function refreshApiBase() {
 /**
  * Performs a session handshake with net52.cc to obtain a valid 3-day t_hash_t cookie.
  */
-async function getSessionCookie(forceRefresh) {
-    if (!forceRefresh && cachedCookie && Date.now() < cachedCookieExpiry) {
-        return cachedCookie;
-    }
-
-    try {
-        var uuid = generateUUID();
-        var formBody = 'g-recaptcha-response=' + encodeURIComponent(uuid);
-        var res = await safeFetch(VERIFY_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Origin': VERIFY_BASE,
-                'Referer': VERIFY_BASE + '/verify2',
-                'User-Agent': DEFAULT_HEADERS['User-Agent']
-            },
-            body: formBody,
-            redirect: 'manual'
-        });
-
-        var setCookie = res.headers.get('set-cookie');
-        if (setCookie && setCookie.indexOf('t_hash_t=') >= 0) {
-            var m = setCookie.match(/t_hash_t=([^;]+)/);
-            if (m) {
-                cachedCookie = 't_hash_t=' + m[1];
-                cachedCookieExpiry = Date.now() + 24 * 3600 * 1000; // Cache for 24 hours
-                console.log('[Net77] Successfully generated session cookie');
-                return cachedCookie;
-            }
-        }
-    } catch (e) {
-        console.error('[Net77] Session cookie verification error:', e.message);
-    }
+/**
+ * NetMirror verification must be completed by the user in a legitimate browser
+ * flow. This QuickJS provider has no host-owned verification handoff yet.
+ * Fail closed rather than manufacturing a reCAPTCHA response or session cookie.
+ */
+async function getSessionCookie() {
     return null;
 }
 
@@ -573,10 +538,14 @@ async function getStreams(tmdbId, mediaType, season, episode, extraArgs) {
     console.log('[Net77] Fetching streams for ' + (isMovie ? 'movie' : 'tv') + ' TMDB: ' + tmdbId +
         (!isMovie ? ' (S:' + sNum + ' E:' + eNum + ')' : ''));
 
+    var cookie = await getSessionCookie();
+    if (!cookie) {
+        console.warn('[Net77] No user-verified session handoff is available; refusing to resolve streams.');
+        return [];
+    }
+
     var meta = await resolveMetadata(tmdbId, mediaType, extraArgs);
     console.log('[Net77] Resolved metadata: "' + meta.title + '" (' + meta.year + ')');
-
-    var cookie = await getSessionCookie();
 
     // Concurrently query Netflix, Prime Video, and Hotstar
     var tasks = OTT_PLATFORMS.map(function(ott) {
