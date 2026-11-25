@@ -979,7 +979,209 @@
     }
   }
 
+
+  function synchronyDeobfuscate(script) {
+    var api = root && root.RAW_SYNCHRONY;
+    if (!api || typeof api.Deobfuscator !== "function") return null;
+    var output = null;
+    var consoleRef = root.console;
+    var saved = {};
+    try {
+      if (consoleRef) {
+        ["log", "warn", "error", "trace"].forEach(function (key) {
+          saved[key] = consoleRef[key];
+          consoleRef[key] = function () {};
+        });
+      }
+      output = new api.Deobfuscator().deobfuscateSource(String(script || ""));
+      return typeof output === "string" && output.trim() ? output : null;
+    } catch (_) {
+      return null;
+    } finally {
+      if (consoleRef) {
+        ["log", "warn", "error", "trace"].forEach(function (key) {
+          try {
+            if (saved[key] === undefined) delete consoleRef[key];
+            else consoleRef[key] = saved[key];
+          } catch (_) {}
+        });
+      }
+    }
+  }
+
+  function streamWishServerList(script, name) {
+    var expression = new RegExp(name + "\\s*=\\s*\\[([\\s\\S]*?)]", "i");
+    var match = expression.exec(String(script || ""));
+    if (!match) return [];
+    return match[1].split(",").map(function (value) {
+      return value.trim().replace(/^["']|["']$/g, "");
+    }).filter(Boolean);
+  }
+
+  function streamWishEmbedUrl(url) {
+    var source = String(url || "");
+    var marker = source.indexOf("/f/");
+    return marker >= 0
+      ? "https://streamwish.com/" + source.substring(marker + 3)
+      : source;
+  }
+
+  function streamWishEmbedId(url) {
+    var match = /.*\/[efd]\/([a-zA-Z0-9]+)/.exec(String(url || ""));
+    return match ? match[1] : String(url || "");
+  }
+
+  function streamWishPick(values) {
+    if (!values || !values.length) return "";
+    return String(values[Math.floor(Math.random() * values.length)] || "");
+  }
+
+  function streamWishSubtitles(script, baseUrl) {
+    try {
+      var source = String(script || "");
+      var tracksAt = source.indexOf("tracks");
+      if (tracksAt < 0) return [];
+      var openAt = source.indexOf("[", tracksAt);
+      if (openAt < 0) return [];
+      var closeAt = source.indexOf("]", openAt + 1);
+      if (closeAt < 0) return [];
+      var text = source.substring(openAt + 1, closeAt);
+      var fixed = text.replace(/\b(file|kind|label)\b/g, function (word, _capture, offset, whole) {
+        var before = whole.charAt(offset - 1);
+        var after = whole.charAt(offset + word.length);
+        return before === "\"" || after === "\"" ? word : "\"" + word + "\"";
+      });
+      var list = JSON.parse("[" + fixed + "]");
+      if (!Array.isArray(list)) return [];
+      var subtitles = [];
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (!item || typeof item !== "object" || String(item.kind || "").toLowerCase() !== "captions") continue;
+        var file = String(item.file || "");
+        if (!file) continue;
+        var subtitleUrl = absolute(file, baseUrl);
+        if (subtitleUrl && /^https:\/\//i.test(subtitleUrl)) {
+          subtitles.push({ url: subtitleUrl, lang: String(item.label || "") });
+        }
+      }
+      return subtitles;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function streamwish(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    var originalUrl = String(url);
+    var embedUrl = streamWishEmbedUrl(originalUrl);
+    var embed;
+    var input;
+    try {
+      embed = new URL(embedUrl);
+      input = new URL(originalUrl);
+    } catch (_) {
+      return [];
+    }
+    var id = streamWishEmbedId(originalUrl);
+    var absoluteId = /^https?:\/\//i.test(id);
+    var domains = absoluteId ? [""] : ["streamwish.com", "niramirus.com", "medixiru.com"];
+    var requestHeaders = Object.assign(
+      {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": String(options.referer || options.pageHeaders && options.pageHeaders.Referer || embed.origin + "/")
+      },
+      options.pageHeaders || {}
+    );
+
+    for (var domainIndex = 0; domainIndex < domains.length; domainIndex++) {
+      var fullUrl = absoluteId
+        ? id
+        : "https://" + domains[domainIndex] + "/" + id.replace(/^\/+/g, "");
+      try {
+        var pageResponse = await request(fullUrl, requestHeaders, 12000);
+        var html = await pageResponse.text();
+        var pageUrl = pageResponse.url || fullUrl;
+        var scriptTags = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+        var mainTag = scriptTags.find(function (tag) {
+          return /src\s*=\s*["'][^"']*\/main\.js(?:[?#][^"']*)?["']/i.test(tag);
+        });
+
+        if (mainTag) {
+          var scriptSrc = (mainTag.match(/src\s*=\s*(["'])(.*?)\1/i) || [,"",""])[2];
+          var mainScriptUrl = absolute(scriptSrc, pageUrl);
+          if (!mainScriptUrl || !/^https:\/\//i.test(mainScriptUrl)) continue;
+          var mainResponse = await request(mainScriptUrl, requestHeaders, 12000);
+          var mainScript = await mainResponse.text();
+          var cleanScript = synchronyDeobfuscate(mainScript);
+          if (!cleanScript) continue;
+
+          var dmcaServers = streamWishServerList(cleanScript, "dmca");
+          var mainServers = streamWishServerList(cleanScript, "main");
+          var rulesServers = streamWishServerList(cleanScript, "rules");
+          var selectedServers = rulesServers.indexOf(embed.host) >= 0 ? mainServers : dmcaServers;
+          var destination = streamWishPick(selectedServers);
+          if (!destination || /[\/@?#]/.test(destination)) continue;
+
+          var destinationUrl;
+          try {
+            destinationUrl = new URL("https://" + destination);
+            if (destinationUrl.username || destinationUrl.password || destinationUrl.pathname !== "/" ||
+                destinationUrl.search || destinationUrl.hash) continue;
+          } catch (_) {
+            continue;
+          }
+
+          var redirectedUrl = new URL(embedUrl);
+          redirectedUrl.hostname = destinationUrl.hostname;
+          redirectedUrl.port = destinationUrl.port;
+          var redirectedPage = streamWishEmbedUrl(redirectedUrl.toString());
+          var redirectedResponse = await request(redirectedPage, requestHeaders, 12000);
+          html = await redirectedResponse.text();
+          pageUrl = redirectedResponse.url || redirectedPage;
+        }
+
+        var playerScript = (html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [])
+          .map(function (tag) {
+            return (tag.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i) || [,""])[1];
+          })
+          .find(function (source) { return /m3u8/i.test(source); });
+        if (!playerScript) continue;
+
+        var unpacked = playerScript;
+        if (playerScript.indexOf("eval(function(p,a,c") >= 0) {
+          var unpackedParts = filemoonUnpack(playerScript);
+          if (!unpackedParts.length) continue;
+          unpacked = unpackedParts.join(" ");
+        }
+
+        var masterMatch = /https[^"]*m3u8[^"]*/i.exec(unpacked);
+        if (!masterMatch || !masterMatch[0]) continue;
+        var masterUrl = absolute(masterMatch[0], pageUrl);
+        if (!masterUrl || !/^https:\/\//i.test(masterUrl)) continue;
+
+        var subtitles = streamWishSubtitles(unpacked, masterUrl);
+        var masterOrigin = new URL(masterUrl).origin;
+        var streamHeaders = {
+          "User-Agent": requestHeaders["User-Agent"],
+          "Referer": masterOrigin + "/"
+        };
+        var videos = await hlsCandidates(
+          masterUrl, options, "StreamWish -", streamHeaders, subtitles
+        );
+        if (videos.length) return videos;
+      } catch (error) {
+        if (absoluteId) {
+          if (options.log) options.log("[StreamWish] " + String(error && error.message || error));
+          return [];
+        }
+      }
+    }
+    return [];
+  }
+
   root.RAWAnimeExtractors = {
+    streamwish: streamwish,
     embedseek: embedseek,
     filemoon: filemoon,
     abyss: abyss,
