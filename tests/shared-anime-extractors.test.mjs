@@ -21,7 +21,8 @@ function response(body, options = {}) {
     ok: options.status ? options.status >= 200 && options.status < 300 : true,
     status: options.status || 200,
     url: options.url || "",
-    text: async () => body
+    text: async () => body,
+    json: async () => typeof body === "string" ? JSON.parse(body) : body
   };
 }
 
@@ -394,4 +395,120 @@ test("AnimeSalt and Animostream route recognized Abyss hosts into the shared run
   const animesalt = fs.readFileSync(path.join(root, "providers/anime/animesalt.js"), "utf8");
   assert.match(animostream, /ext\.abyss\(u,/);
   assert.match(animesalt, /abyssShared\.abyss\(azAbs\(u,page\)/);
+});
+
+
+test("Filemoon unpacks P.A.C.K.E.R. and returns HLS variants plus subtitle metadata", async () => {
+  const pageUrl = "https://filemoon.sx/e/abc?sub.info=https%3A%2F%2Fsubs.example%2Flist.json";
+  const packed = '<script>eval(function(p,a,c,k,e,d){return p;}(' +
+    '\'({file:"0"})\',36,1,\'https://media.example/master.m3u8\'.split(\'|\'),0,{}))</script>';
+  const calls = [];
+  const extractors = loadExtractors(async (url, options = {}) => {
+    const value = String(url);
+    calls.push({ url: value, options });
+    if (value === pageUrl) return response(packed, { url: pageUrl });
+    if (value === "https://subs.example/list.json") {
+      return response(JSON.stringify([{ file: "https://subs.example/en.vtt", label: "English" }]));
+    }
+    if (value === "https://media.example/master.m3u8") {
+      return response([
+        "#EXTM3U",
+        "#EXT-X-STREAM-INF:BANDWIDTH=3500000,RESOLUTION=1920x1080",
+        "1080/index.m3u8",
+        "#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=1280x720",
+        "720/index.m3u8"
+      ].join("\n"));
+    }
+    throw new Error("Unexpected Filemoon request " + value);
+  });
+
+  const candidates = await extractors.filemoon(pageUrl, {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 4,
+    language: "sub"
+  });
+
+  assert.equal(calls[0].url, pageUrl);
+  assert.equal(calls[0].options.headers.Referer, pageUrl);
+  assert.equal(calls[0].options.headers.Origin, "https://filemoon.sx");
+  assert.ok(calls.some((call) => call.url === "https://subs.example/list.json"));
+  assert.equal(candidates.length, 2);
+  assert.ok(candidates.some((item) =>
+    item.url === "https://media.example/1080/index.m3u8" &&
+    item.quality === "1080p" &&
+    item.name === "FileMoon - 1080p"
+  ));
+  assert.ok(candidates.some((item) =>
+    item.url === "https://media.example/720/index.m3u8" &&
+    item.quality === "720p" &&
+    item.name === "FileMoon - 720p"
+  ));
+  assert.ok(candidates.every((item) => item.provider === "animostream"));
+  assert.ok(candidates.every((item) => item.anilistId === "21" && item.episodeNumber === 4));
+  assert.ok(candidates.every((item) =>
+    item.subtitles.some((sub) => sub.url === "https://subs.example/en.vtt" && sub.lang === "English")
+  ));
+  assert.ok(candidates.every((item) => item.headers.Referer === "https://filemoon.sx/"));
+});
+
+test("Filemoon follows an iframe when the parent page has no packed player script", async () => {
+  const pageUrl = "https://filemoon.sx/e/iframe-case";
+  const iframeUrl = "https://embed.filemoon.sx/embed/xyz";
+  const packed = '<script>eval(function(p,a,c,k,e,d){return p;}(' +
+    '\'({file:"0"})\',36,1,\'https://media.example/iframe-master.m3u8\'.split(\'|\'),0,{}))</script>';
+  const calls = [];
+  const extractors = loadExtractors(async (url, options = {}) => {
+    const value = String(url);
+    calls.push({ url: value, options });
+    if (value === pageUrl) return response('<iframe src="https://embed.filemoon.sx/embed/xyz"></iframe>', { url: pageUrl });
+    if (value === iframeUrl) return response(packed, { url: iframeUrl });
+    if (value === "https://media.example/iframe-master.m3u8") {
+      return response([
+        "#EXTM3U",
+        "#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480",
+        "480/index.m3u8"
+      ].join("\n"));
+    }
+    throw new Error("Unexpected Filemoon request " + value);
+  });
+
+  const candidates = await extractors.filemoon(pageUrl, {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 1
+  });
+
+  assert.deepEqual(calls.slice(0, 2).map((call) => call.url), [pageUrl, iframeUrl]);
+  assert.equal(calls[1].options.headers.Referer, pageUrl);
+  assert.equal(calls[1].options.headers.Origin, "https://filemoon.sx");
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].url, "https://media.example/480/index.m3u8");
+  assert.equal(candidates[0].quality, "480p");
+  assert.equal(candidates[0].headers.Referer, "https://embed.filemoon.sx/");
+});
+
+test("Filemoon rejects non-P.A.C.K.E.R. embeds and invalid anime identity", async () => {
+  let requests = 0;
+  const extractors = loadExtractors(async (url) => {
+    requests++;
+    return response('<script>var player = {file:"https://cdn.example/master.m3u8"}</script>', { url: String(url) });
+  });
+
+  assert.deepEqual(Array.from(await extractors.filemoon("https://filemoon.sx/e/not-packed", {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 1
+  })), []);
+  assert.deepEqual(Array.from(await extractors.filemoon("https://filemoon.sx/e/invalid-id", {
+    provider: "animostream",
+    anilistId: "0",
+    episodeNumber: 1
+  })), []);
+  assert.equal(requests, 1);
+});
+
+test("Animostream routes Filemoon links into the shared extractor", () => {
+  const source = fs.readFileSync(path.join(root, "providers/anime/animostream.js"), "utf8");
+  assert.match(source, /ext\.filemoon\(u,/);
 });
