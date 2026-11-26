@@ -248,7 +248,7 @@ test("VidHide follows the Kotlin packed-player extraction and keeps caption trac
     if (value === "https://vidhide.example/e/fixture") {
       const unpacked = 'var sources = ["https://media.example/vidhide/master.m3u8"]; var tracks = [{file:"https://media.example/subs/en.vtt",kind:"captions",label:"English"}];';
       const packed = "<script>eval(function(p,a,c,k,e,d){return p;}('" + unpacked +
-        "',10,1,'unused'.split('|'),0,{}))</script>";
+        "',10,1,''.split('|'),0,{}))</script>";
       return response(packed, { url: value });
     }
     if (value === "https://media.example/vidhide/master.m3u8") {
