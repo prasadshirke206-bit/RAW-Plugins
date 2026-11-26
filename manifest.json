@@ -41,7 +41,7 @@
     {
       "id": "bingr",
       "name": "Bingr",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Enabled RAW provider. Source provenance, candidate-schema conformance and real-device MPV playback validation remain under audit.",
       "version": "1.3.1",
       "author": "Secondary Agent",
       "supportedTypes": [
@@ -65,7 +65,7 @@
     {
       "id": "movy",
       "name": "Movy",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Enabled RAW provider. Source provenance, candidate-schema conformance and real-device MPV playback validation remain under audit.",
       "version": "1.3.1",
       "author": "Secondary Agent",
       "supportedTypes": [
@@ -91,7 +91,7 @@
     {
       "id": "4khdhub",
       "name": "4KHDHub",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Enabled RAW provider. Source provenance, candidate-schema conformance and real-device MPV playback validation remain under audit.",
       "version": "1.4.3",
       "author": "Secondary Agent",
       "supportedTypes": [
@@ -146,7 +146,7 @@
     {
       "id": "bollyflix",
       "name": "Bollyflix",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Enabled RAW provider. Source provenance, candidate-schema conformance and real-device MPV playback validation remain under audit.",
       "version": "1.2.6",
       "author": "Secondary Agent",
       "supportedTypes": [
@@ -174,7 +174,7 @@
     {
       "id": "cinevood",
       "name": "Cinevood",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Enabled RAW provider. Source provenance, candidate-schema conformance and real-device MPV playback validation remain under audit.",
       "version": "1.2.4",
       "author": "Secondary Agent",
       "supportedTypes": [
@@ -204,7 +204,7 @@
     {
       "id": "freekz",
       "name": "Freekz",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Enabled RAW provider. Source provenance, candidate-schema conformance and real-device MPV playback validation remain under audit.",
       "version": "2.2.3",
       "author": "Euthopiar Core Team",
       "supportedTypes": [
@@ -263,7 +263,7 @@
     {
       "id": "uhdmovies",
       "name": "UHDMovies",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Enabled RAW provider. Source provenance, candidate-schema conformance and real-device MPV playback validation remain under audit.",
       "version": "1.1.2",
       "author": "Secondary Agent",
       "supportedTypes": [
@@ -289,7 +289,7 @@
     {
       "id": "vegamovies",
       "name": "VegaMovies",
-      "description": "Upstream provider script registered for RAW. Disabled pending provenance, QuickJS contract, candidate-schema, and Android MPV playback validation.",
+      "description": "Enabled RAW provider. Source provenance, candidate-schema conformance and real-device MPV playback validation remain under audit.",
       "version": "1.2.4",
       "author": "Secondary Agent",
       "supportedTypes": [
