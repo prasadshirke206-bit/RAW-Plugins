@@ -39,15 +39,39 @@ function akCandidate(url, name, quality, type, lang, subtitles, headers) {
   if (!url || !/^https:\/\//i.test(url)) return null;
   return { name: "Anikage | " + name, title: name, url: url, quality: quality || "Auto", type: type || "m3u8", provider: ANIKAGE_ID, language: lang || undefined, headers: headers || ANIKAGE_HEADERS, subtitles: subtitles || [] };
 }
+function akServerSubTypes(server) {
+  var values = server && Array.isArray(server.subTypes) ? server.subTypes : [];
+  return values.length ? values.map(function (value) { return String(value).toLowerCase(); }) : ["sub", "dub"];
+}
 function akQuality(h) { var n = Number(h || 0); if (n >= 2160) return "2160p"; if (n >= 1440) return "1440p"; if (n >= 1080) return "1080p"; if (n >= 720) return "720p"; if (n >= 480) return "480p"; if (n >= 360) return "360p"; if (n >= 240) return "240p"; if (n >= 144) return "144p"; return "Auto"; }
 function akAbs(base, value) { try { return new URL(value, base).toString(); } catch (_) { return value; } }
-function akResolveProxy(value, isM3u8) {
+var ANIKAGE_PROXY_CACHE = null;
+async function akGetProxyUrl() {
+  if (ANIKAGE_PROXY_CACHE) return ANIKAGE_PROXY_CACHE;
+  var proxy = ANIKAGE_PROXY;
+  try {
+    var html = await (await akFetch(ANIKAGE_SITE, { headers: ANIKAGE_HEADERS }, 6500)).text();
+    var match = html.match(/["']?PUBLIC_PROXY_URL["']?\s*:\s*["']([^"']+)["']/i);
+    if (match && match[1]) {
+      var candidate = new URL(match[1]);
+      if (candidate.protocol === "https:" && candidate.host && !candidate.username && !candidate.password) {
+        proxy = candidate.toString().replace(/\/+$/, "");
+      }
+    }
+  } catch (error) {
+    console.log("[Anikage] dynamic proxy discovery failed; using Kotlin-compatible fallback: " + String(error && error.message || error));
+  }
+  ANIKAGE_PROXY_CACHE = proxy.replace(/\/+$/, "");
+  return ANIKAGE_PROXY_CACHE;
+}
+function akResolveProxy(value, isM3u8, proxyBase) {
   if (!value) return "";
   var v = String(value).trim();
   if (/^https?:\/\//i.test(v)) return v;
-  if (/^\/(stream|m3u8|hls)\//i.test(v)) return ANIKAGE_PROXY + v;
-  if (/^(stream|m3u8|hls)\//i.test(v)) return ANIKAGE_PROXY + "/" + v;
-  return ANIKAGE_PROXY + "/" + (isM3u8 ? "m3u8/" : "stream/") + v.replace(/^\/+/, "");
+  var base = String(proxyBase || ANIKAGE_PROXY).replace(/\/+$/, "");
+  if (/^\/(stream|m3u8|hls)\//i.test(v)) return base + v;
+  if (/^(stream|m3u8|hls)\//i.test(v)) return base + "/" + v;
+  return base + "/" + (isM3u8 ? "m3u8/" : "stream/") + v.replace(/^\/+/, "");
 }
 async function akHls(url, label, lang, subtitles, headers) {
   var body = await (await akFetch(url, { headers: headers }, 10000)).text();
@@ -64,6 +88,79 @@ async function akHls(url, label, lang, subtitles, headers) {
   if (!out.length) { var c0 = akCandidate(url, label, "Auto", "m3u8", lang, subtitles, headers); if (c0) out.push(c0); }
   return out;
 }
+
+async function akMegaPlayVideos(label, embedUrl, lang) {
+  try {
+    var embedHost = new URL(embedUrl).origin;
+    var page = await (await akFetch(embedUrl, {
+      headers: Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" })
+    }, 10000)).text();
+    var match = page.match(/data-id=["']?(\d+)/i);
+    if (!match) return [];
+    var requestHeaders = Object.assign({}, ANIKAGE_HEADERS, {
+      "Referer": embedUrl,
+      "X-Requested-With": "XMLHttpRequest"
+    });
+    var data = await akJson(embedHost + "/stream/getSources?id=" + encodeURIComponent(match[1]), {
+      headers: requestHeaders
+    }, 10000);
+    var master = data && data.sources && data.sources.file;
+    if (!master || !/^https:\/\//i.test(master)) return [];
+    var subtitles = (data.tracks || []).filter(function (track) {
+      var kind = String(track && track.kind || "").toLowerCase();
+      return track && track.file && (kind === "captions" || kind === "subtitles");
+    }).map(function (track) {
+      return /^https:\/\//i.test(track.file) ? { url: track.file, lang: track.label || "Subtitle" } : null;
+    }).filter(Boolean);
+    var streamHeaders = Object.assign({}, ANIKAGE_HEADERS, { "Referer": embedHost + "/" });
+    var videos = await akHls(master, label, lang, subtitles, streamHeaders);
+    if (videos.length) return videos;
+    // Kotlin's MegaPlayExtractor preserves the observed master URL as an Auto
+    // candidate when playlist inspection fails; do the same, without inventing variants.
+    var fallback = akCandidate(master, label + " - Auto", "Auto", "m3u8", lang, subtitles, streamHeaders);
+    return fallback ? [fallback] : [];
+  } catch (error) {
+    console.log("[Anikage] MegaPlay embed failed: " + String(error && error.message || error));
+    return [];
+  }
+}
+
+async function akVibePlayerVideos(label, embedUrl, lang) {
+  try {
+    var embedOrigin = new URL(embedUrl).origin;
+    var html = await (await akFetch(embedUrl, {
+      headers: Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" })
+    }, 10000)).text();
+    var master = (html.match(/const\s+src\s*=\s*["']([^"']+\.m3u8[^"']*)["']/i) || [, ""])[1] ||
+      (html.match(/https?:\/\/[^"'\s<>]+\.m3u8[^"'\s<>]*/i) || [, ""])[0];
+    if (!master) return [];
+    var subtitles = [];
+    try {
+      var sub = new URL(embedUrl).searchParams.get("sub");
+      if (sub && /^https:\/\//i.test(sub)) subtitles.push({ url: sub, lang: "English" });
+    } catch (_) {}
+    var streamHeaders = Object.assign({}, ANIKAGE_HEADERS, { "Referer": embedOrigin + "/" });
+    return await akHls(master, label, lang, subtitles, streamHeaders);
+  } catch (error) {
+    console.log("[Anikage] VibePlayer embed failed: " + String(error && error.message || error));
+    return [];
+  }
+}
+
+async function akResolveEmbed(label, embedUrl, lang) {
+  if (!embedUrl || !/^https:\/\//i.test(embedUrl)) return [];
+  if (/megaplay\.buzz|vidtube\.site/i.test(embedUrl)) {
+    return await akMegaPlayVideos(label, embedUrl, lang);
+  }
+  // These paths use CloudStream/Tachiyomi's native UniversalExtractor/WebView
+  // stack. QuickJS must fail closed until RAW exposes the equivalent host ABI.
+  if (/flixcloud|rabbit|megacloud/i.test(embedUrl)) {
+    console.log("[Anikage] native UniversalExtractor route requires a RAW host capability");
+    return [];
+  }
+  return await akVibePlayerVideos(label, embedUrl, lang);
+}
+
 async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
   try {
     var context = Object.assign({}, akContext(), extraArgs || {});
@@ -102,15 +199,16 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var preferredAudio = String(context.preferredAudio || "sub").toLowerCase();
     var audioOrder = preferredAudio === "dub" ? ["dub", "sub"] : ["sub", "dub"];
     var availableTypes = {};
-    servers.forEach(function (s) { (s.subTypes || ["sub", "dub"]).forEach(function (x) { availableTypes[String(x).toLowerCase()] = true; }); });
+    servers.forEach(function (s) { akServerSubTypes(s).forEach(function (x) { availableTypes[x] = true; }); });
     var types = audioOrder.filter(function (x) { return availableTypes[x]; });
     // Resolve each server/language source independently. This keeps slow servers
     // from serially blocking better mirrors and makes the plugin's work bounded.
+    var proxyBase = await akGetProxyUrl();
     var sourceTasks = [];
     for (var si = 0; si < servers.length; si++) {
       var server = servers[si];
       if (!server || !server.id) continue;
-      var typesForServer = (server.subTypes || types).map(function (x) { return String(x).toLowerCase(); });
+      var typesForServer = akServerSubTypes(server);
       for (var li = 0; li < types.length; li++) {
         var lang = types[li];
         if (typesForServer.indexOf(lang) < 0) continue;
@@ -120,30 +218,52 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
               "/sources?provider=" + encodeURIComponent(selectedServer.id) + "&lang=" + encodeURIComponent(selectedLang) +
               "&server=" + encodeURIComponent(selectedServer.id);
             var data = await akJson(sourceUrl, { headers: ANIKAGE_HEADERS }, 7000);
-            var subtitles = (data.subtitles || []).map(function (s) {
+            var labels = {};
+            (data.embeds || []).forEach(function (item) {
+              if (item && item.url && item.server) labels[item.url] = item.server;
+            });
+            (data.embedOptions || []).forEach(function (item) {
+              if (item && item.url && item.label) labels[item.url] = item.label;
+            });
+            var subtitles = (data.subtitles || []).filter(function (s) {
+              var kind = String(s && s.kind || "").toLowerCase();
+              return !kind || kind === "captions" || kind === "subtitles";
+            }).map(function (s) {
               var raw = s && (s.file || s.url);
               if (!raw) return null;
-              var u = akResolveProxy(raw, false);
-              return /^https:\/\//i.test(u) ? { url: u, lang: s.label || "Unknown" } : null;
+              var u = akResolveProxy(raw, false, proxyBase);
+              if (!u) return null;
+              if (u.indexOf(".vtt") < 0 && u.indexOf("?") < 0) u += "?ext=.vtt";
+              return /^https:\/\//i.test(u) ? { url: u, lang: s.label || "English" } : null;
             }).filter(Boolean);
             var local = [];
             (data.sources || []).forEach(function (src) {
-              if (!src || !src.url) return;
+              if (!src) return;
+              var rawUrl = String(src.url || "").trim();
+              var embedUrl = String(src.embedUrl || "").trim();
               var isM3u8 = src.isM3U8 !== false;
-              var full = akResolveProxy(src.url, isM3u8);
+              var full = rawUrl ? akResolveProxy(rawUrl, isM3u8, proxyBase) : "";
               var host = (full.match(/^https?:\/\/([^/]+)/i) || [,""])[1].toLowerCase();
               if (["vivibebe.site", "echovideo.to", "krussdomi.com"].some(function (h) {
                 return host === h || host.endsWith("." + h);
-              })) return;
-              var label = String(selectedServer.id).toUpperCase() + " - " + selectedLang.toUpperCase() + " - " + (src.quality || "Auto");
-              if (isM3u8) {
-                if (/^https:\/\//i.test(full)) {
-                  local.push({ _url: full, _label: label, _lang: selectedLang, _subs: subtitles,
-                    _headers: Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" }) });
+              })) {
+                console.log("[Anikage] source requires native local HLS relay: " + host);
+                return;
+              }
+              var displayLabel = embedUrl && labels[embedUrl] || src.server || src.quality || "Auto";
+              var label = String(selectedServer.id).replace(/^./, function (c) { return c.toUpperCase(); }) +
+                " - " + selectedLang.toUpperCase() + " - " + displayLabel;
+              var streamHeaders = Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" });
+              if (full && /^https:\/\//i.test(full)) {
+                if (isM3u8) {
+                  local.push({ _url: full, _label: label, _lang: selectedLang, _subs: subtitles, _headers: streamHeaders });
+                } else {
+                  var direct = akCandidate(full, label, src.quality || "Auto", "mp4", selectedLang, subtitles, streamHeaders);
+                  if (direct) local.push(direct);
                 }
-              } else {
-                var direct = akCandidate(full, label, src.quality || "Auto", "mp4", selectedLang, subtitles, ANIKAGE_HEADERS);
-                if (direct) local.push(direct);
+              }
+              if (embedUrl && /^https:\/\//i.test(embedUrl)) {
+                local.push({ _embed: embedUrl, _label: label, _lang: selectedLang });
               }
             });
             return local;
@@ -162,7 +282,9 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     }
 
     var hlsTasks = sourceEntries.map(async function (entry) {
-      if (!entry || !entry._url) return entry ? [entry] : [];
+      if (!entry) return [];
+      if (entry._embed) return await akResolveEmbed(entry._label, entry._embed, entry._lang);
+      if (!entry._url) return [entry];
       try {
         return await akHls(entry._url, entry._label, entry._lang, entry._subs, entry._headers);
       } catch (error) {

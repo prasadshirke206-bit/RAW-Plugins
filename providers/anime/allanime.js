@@ -137,26 +137,51 @@ async function aaDecryptPayload(payload) {
   return new TextDecoder().decode(plaintext);
 }
 function aaDecodeSourceURL(value) {
-  var raw = String(value || "");
-  if (raw.indexOf("--") === 0) raw = raw.slice(2);
-  if (!/^(?:[0-9a-fA-F]{2})+$/.test(raw)) return String(value || "");
-  var substitutions = {
-    "79":"A","7a":"B","7b":"C","7c":"D","7d":"E","7e":"F","7f":"G",
-    "70":"H","71":"I","72":"J","73":"K","74":"L","75":"M","76":"N","77":"O",
-    "68":"P","69":"Q","6a":"R","6b":"S","6c":"T","6d":"U","6e":"V","6f":"W",
-    "60":"X","61":"Y","62":"Z","59":"a","5a":"b","5b":"c","5c":"d","5d":"e","5e":"f","5f":"g",
-    "50":"h","51":"i","52":"j","53":"k","54":"l","55":"m","56":"n","57":"o","48":"p","49":"q","4a":"r","4b":"s","4c":"t","4d":"u","4e":"v","4f":"w",
-    "40":"x","41":"y","42":"z","08":"0","09":"1","0a":"2","0b":"3","0c":"4","0d":"5","0e":"6","0f":"7","00":"8","01":"9",
-    "15":"-","16":".","67":"_","46":"~","02":":","17":"/","07":"?","1b":"#","63":"[","65":"]","78":"@","19":"!","1c":"$","1e":"&",
-    "10":"(","11":")","12":"*","13":"+","14":",","03":";","05":"=","1d":"%"
-  };
-  var decoded = "";
-  for (var i = 0; i < raw.length; i += 2) {
-    var pair = raw.slice(i, i + 2).toLowerCase();
-    decoded += Object.prototype.hasOwnProperty.call(substitutions, pair) ? substitutions[pair] : pair;
+  var original = String(value || "");
+  var payload = original;
+  var keyType = null;
+
+  // Match Kotlin String.decryptSource(): --=key 3, #-=key 2,
+  // ##=key 1, -=#key 4, #=key 0.
+  if (payload.indexOf("--") === 0) { payload = payload.slice(2); keyType = 3; }
+  else if (payload.indexOf("#-") === 0) { payload = payload.slice(2); keyType = 2; }
+  else if (payload.indexOf("##") === 0) { payload = payload.slice(2); keyType = 1; }
+  else if (payload.indexOf("-#") === 0) { payload = payload.slice(2); keyType = 4; }
+  else if (payload.indexOf("#") === 0) { payload = payload.slice(1); keyType = 0; }
+
+  // Kotlin parses hex in two-character chunks; an odd final nibble is valid.
+  if (!/^[0-9a-fA-F]+$/.test(payload)) return original;
+  var bytes = [];
+  for (var i = 0; i < payload.length; i += 2) {
+    var parsed = parseInt(payload.slice(i, i + 2), 16);
+    if (!Number.isFinite(parsed)) return original;
+    bytes.push(parsed);
   }
-  decoded = decoded.replace(/\/clock\b/g, "/clock.json");
-  if (decoded.charAt(0) === "/") return "https://allanime.day" + decoded;
+
+  function decode(mask) {
+    var output = "";
+    for (var j = 0; j < bytes.length; j++) output += String.fromCharCode((bytes[j] ^ mask) & 0xFF);
+    return output;
+  }
+
+  var decoded = "";
+  if (keyType === null) {
+    // Unprefixed values try all Kotlin masks and are accepted only when they
+    // produce a recognizable clock path or absolute URL.
+    for (var m = 0; m < ALLANIME_XOR_MASKS.length; m++) {
+      var candidate = decode(ALLANIME_XOR_MASKS[m]);
+      if (candidate.indexOf("/clock") >= 0 || candidate.indexOf("http") >= 0) {
+        decoded = candidate;
+        break;
+      }
+    }
+    if (!decoded) return original;
+  } else {
+    decoded = decode(ALLANIME_XOR_MASKS[keyType]);
+  }
+
+  // Preserve relative /apivtwo paths for the same internal-host routing used
+  // by the Kotlin implementation. aaInternal() normalizes /clock? itself.
   return decoded;
 }
 function aaDecryptSource(value) { return aaDecodeSourceURL(value); }

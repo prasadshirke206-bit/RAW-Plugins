@@ -1,7 +1,7 @@
 {
   "name": "RAW-Plugins",
   "id": "raw-plugins",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "manifestVersion": 1,
   "description": "Official RAW streaming plugins for movies, TV and anime.",
   "app": {
@@ -319,7 +319,7 @@
       "id": "allanime",
       "name": "AllAnime",
       "description": "AniList-mapped AllAnime GraphQL provider. Includes encrypted episode-response handling (QuickJS WebCrypto AES-GCM required), internal clock endpoint and direct HLS/MP4 extraction. External embed pages are only returned when a direct media URL is visible.",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -341,7 +341,7 @@
       "id": "anikage",
       "name": "Anikage",
       "description": "AniList-mapped Anikage API provider with episode/server/source requests, Koto/Rai server discovery, public stream-proxy token resolution, HLS variant parsing and subtitle tracks.",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -384,7 +384,7 @@
       "id": "anilight",
       "name": "AniLight",
       "description": "AniList-ID-mapped AniLight API provider with episode lookup, public MegaPlay embed parsing, AES-CBC source decryption, HLS quality parsing and subtitle tracks. Other WebView/Turnstile-only server routes require a native browser host capability.",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
