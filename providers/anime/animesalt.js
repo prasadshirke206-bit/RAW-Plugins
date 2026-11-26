@@ -1123,7 +1123,7 @@
       : openingTagWithClass(html, tagName, className);
     var cls = htmlAttribute(tag, "class");
     var value = cls.substring(cls.indexOf(marker) + marker.length);
-    return new Uint8Array(Array.from(value).filter(function (ch) { return /\d/.test(ch); }).map(function (ch) { return Number(ch); }));
+    return new Uint8Array(Array.from(value).filter(function (ch) { return /\d/.test(ch); }).map(function (ch) { return ch.charCodeAt(0); }));
   }
 
   async function aesCbc(data, keyBytes, ivBytes, operation) {
