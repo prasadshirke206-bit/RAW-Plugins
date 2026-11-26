@@ -51,26 +51,26 @@ test("AllAnime matches Kotlin's five explicitly prefixed XOR modes", () => {
     ["#", 0]
   ];
   for (const [prefix, mask] of modes) {
-    const path = "/apivtwo/clock?server=Default";
-    assert.equal(decode(xorHex(path, mask, prefix)), path, "prefix " + prefix);
+    const value = "/apivtwo/clock?server=Default";
+    assert.equal(decode(xorHex(value, mask, prefix)), value, "prefix " + prefix);
   }
 });
 
-test("AllAnime unprefixed source decoding tries the Kotlin XOR masks in order", () => {
+test("AllAnime unprefixed source decoding tries Kotlin XOR masks in order", () => {
   const value = "https://cdn.example/clock?token=1";
   for (const mask of [0, 48, 49, 56, 59]) {
     assert.equal(decode(xorHex(value, mask, "")), value, "mask " + mask);
   }
 });
 
-test("AllAnime preserves already-clear URLs and rejects malformed hex without corrupting it", () => {
+test("AllAnime preserves clear URLs and malformed payloads without corrupting them", () => {
   const plain = "https://cdn.example/video.m3u8";
   const malformed = "--not-hex";
   assert.equal(decode(plain), plain);
   assert.equal(decode(malformed), malformed);
 });
 
-test("AllAnime preserves relative internal API paths for Kotlin-compatible host routing", () => {
-  const path = "/apivtwo/clock?token=abc";
-  assert.equal(decode(xorHex(path, 56, "--")), path);
+test("AllAnime preserves relative /apivtwo paths for Kotlin-compatible internal routing", () => {
+  const value = "/apivtwo/clock?token=abc";
+  assert.equal(decode(xorHex(value, 56, "--")), value);
 });
