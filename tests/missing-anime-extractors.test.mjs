@@ -272,6 +272,8 @@ test("VidHide follows the Kotlin packed-player extraction and keeps caption trac
     track.url === "https://media.example/subs/en.vtt" && track.lang === "English"
   ));
   assert.equal(calls.length, 2);
+  assert.equal(calls[1].init.headers.Referer, "https://vidhide.example/e/fixture");
+  assert.equal(candidates[0].headers.Referer, "https://vidhide.example/e/fixture");
 });
 
 test("Vidara follows the Kotlin Android API contract and parses HLS variants", async () => {
@@ -300,6 +302,38 @@ test("Vidara follows the Kotlin Android API contract and parses HLS variants", a
   assert.equal(candidates[0].anilistId, "16498");
   assert.equal(candidates[0].episodeNumber, 3);
   assert.equal(calls.length, 2);
+  assert.equal(calls[0].init.headers.Referer, "https://vidara.to/");
+  assert.equal(calls[1].init.headers.Referer, "https://vidara.to/e/abc123");
+  assert.equal(candidates[0].headers.Referer, "https://vidara.to/e/abc123");
+});
+
+test("Vidara upns.pro reverses the hex JSON response and preserves Kotlin fragment IDs", async () => {
+  const calls = [];
+  const { extractors } = loadExtractors(async (url, init = {}) => {
+    const value = String(url);
+    calls.push({ url: value, init });
+    if (value === "https://upns.pro/api/v1/video?id=vid-456&token=keep") {
+      const payload = JSON.stringify({ file: "https://media.example/upns/master.m3u8" });
+      const encoded = payload.split("").reverse().map((ch) =>
+        ch.charCodeAt(0).toString(16).padStart(2, "0")
+      ).join("");
+      return response(encoded, { url: value });
+    }
+    if (value === "https://media.example/upns/master.m3u8") {
+      return response("#EXTM3U\\n#EXT-X-STREAM-INF:BANDWIDTH=2400000,RESOLUTION=1920x1080\\n1080/index.m3u8");
+    }
+    throw new Error("Unexpected UPNS request " + value);
+  });
+
+  const originalUrl = "https://upns.pro/e/ignored#vid-456&token=keep";
+  const candidates = await extractors.vidara(originalUrl, options("animesaga"));
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].quality, "1080p");
+  assert.equal(candidates[0].url, "https://media.example/upns/1080/index.m3u8");
+  assert.equal(calls[0].url, "https://upns.pro/api/v1/video?id=vid-456&token=keep");
+  assert.equal(calls[0].init.headers.Referer, "https://upns.pro/");
+  assert.equal(calls[1].init.headers.Referer, originalUrl);
+  assert.equal(candidates[0].headers.Referer, originalUrl);
 });
 
 test("shared VidHide and Vidara extractors reject incomplete anime identity without networking", async () => {
