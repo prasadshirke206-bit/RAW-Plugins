@@ -171,3 +171,43 @@ test("Anikage fails closed for UniversalExtractor-only embeds instead of returni
   assert.ok(logs.some((line) => line.includes("UniversalExtractor route requires a RAW host capability")));
   assert.ok(!candidates.some((item) => item.url === embedUrl));
 });
+
+test("Anikage treats an empty server subTypes list as both sub and dub, like Kotlin", async () => {
+  const calls = [];
+  const { getStreams } = loadProvider(async (url, options) => {
+    const fixed = baseRequests(url, options, calls);
+    if (fixed) return fixed;
+
+    const value = String(url);
+    if (value.includes("/sources?provider=koto&lang=sub&server=koto")) {
+      calls.push({ url: value, options: options || {} });
+      return response({ sources: [] });
+    }
+    if (value.includes("/sources?provider=koto&lang=dub&server=koto")) {
+      calls.push({ url: value, options: options || {} });
+      return response({
+        sources: [{ url: "dub-token", isM3U8: false, quality: "720p", server: "Koto Dub" }],
+        subtitles: []
+      });
+    }
+    if (value === "https://edge.example/proxy/stream/dub-token") {
+      calls.push({ url: value, options: options || {} });
+      return response("video bytes", 200, "video/mp4");
+    }
+    // Override the shared server fixture with the empty-list edge case.
+    if (value === "https://anikage.cc/api/media/anime/parity-fixture/episodes/1/servers") {
+      calls.push({ url: value, options: options || {} });
+      return response({ servers: [{ id: "koto", subTypes: [] }] });
+    }
+    throw new Error("Unexpected Anikage request: " + value);
+  });
+
+  const context = Object.assign(requestContext(), { preferredAudio: "dub" });
+  const candidates = await getStreams("16498", "anime", 1, 1, context);
+  assert.ok(calls.some((call) => call.url.includes("lang=dub")));
+  assert.ok(calls.some((call) => call.url.includes("lang=sub")));
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].url, "https://edge.example/proxy/stream/dub-token");
+  assert.equal(candidates[0].language, "dub");
+  assert.equal(candidates[0].type, "mp4");
+});
