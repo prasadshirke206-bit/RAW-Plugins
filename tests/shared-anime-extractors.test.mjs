@@ -18,7 +18,11 @@ const synchronyEndMarker = "/* END RAW SYNCHRONY */";
 const providerFiles = [
   "providers/anime/animostream.js",
   "providers/anime/animesalt.js",
-  "providers/anime/allanime.js"
+  "providers/anime/allanime.js",
+  "providers/anime/animotvslash.js",
+  "providers/anime/anineko.js",
+  "providers/anime/animesaga.js",
+  "providers/anime/anitusk.js"
 ];
 
 function encryptEmbedSeekForTest(payload) {
