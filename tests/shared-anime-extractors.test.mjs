@@ -430,6 +430,188 @@ test("AnimeSalt and Animostream route recognized Abyss hosts into the shared run
 });
 
 
+test("EmbedSeek decrypts Kotlin AES-CBC payload and returns exact HLS variants/subtitles", async () => {
+  const payload = {
+    source: "https://cdn.example/embedseek/master.m3u8",
+    subtitle: {
+      en: "/subs/embedseek-en.vtt#session",
+      hi: "https://subs.example/embedseek-hi.vtt#token",
+      jp: ""
+    }
+  };
+  const encrypted = encryptEmbedSeekForTest(payload);
+  const calls = [];
+  const extractors = loadExtractors(async (url, options = {}) => {
+    const value = String(url);
+    calls.push({ url: value, options });
+    if (value === "https://animostream.embedseek.online/api/v1/video?id=episode-77&w=1920&h=1080&r=www.animostream.xyz") {
+      return response(encrypted);
+    }
+    if (value === payload.source) {
+      return response([
+        "#EXTM3U",
+        "#EXT-X-STREAM-INF:BANDWIDTH=4200000,RESOLUTION=1920x1080",
+        "1080/index.m3u8",
+        "#EXT-X-STREAM-INF:BANDWIDTH=2100000,RESOLUTION=1280x720",
+        "720/index.m3u8"
+      ].join("\n"));
+    }
+    throw new Error("Unexpected EmbedSeek request " + value);
+  });
+
+  const candidates = await extractors.embedseek(
+    "https://www.animostream.xyz/watch/#episode-77&source=embedseek",
+    {
+      provider: "animostream",
+      anilistId: "21",
+      episodeNumber: 77,
+      referer: "https://www.animostream.xyz/"
+    }
+  );
+
+  assert.equal(calls[0].url, "https://animostream.embedseek.online/api/v1/video?id=episode-77&w=1920&h=1080&r=www.animostream.xyz");
+  assert.equal(calls[0].options.headers.Referer, "https://www.animostream.xyz/");
+  assert.equal(candidates.length, 2);
+  assert.ok(candidates.some((item) =>
+    item.url === "https://cdn.example/embedseek/1080/index.m3u8" &&
+    item.quality === "1080p" &&
+    item.name === "EmbedSeek - 1080p"
+  ));
+  assert.ok(candidates.some((item) =>
+    item.url === "https://cdn.example/embedseek/720/index.m3u8" &&
+    item.quality === "720p" &&
+    item.name === "EmbedSeek - 720p"
+  ));
+  assert.ok(candidates.every((item) => item.provider === "animostream"));
+  assert.ok(candidates.every((item) => item.anilistId === "21" && item.episodeNumber === 77));
+  assert.ok(candidates.every((item) =>
+    item.subtitles.some((sub) => sub.url === "https://animostream.embedseek.online/subs/embedseek-en.vtt" && sub.lang === "English") &&
+    item.subtitles.some((sub) => sub.url === "https://subs.example/embedseek-hi.vtt#token" && sub.lang === "Hindi")
+  ));
+  assert.ok(candidates.every((item) => item.headers.Referer === "https://animostream.embedseek.online/"));
+});
+
+test("EmbedSeek returns direct MP4 source with provider subtitle tracks", async () => {
+  const payload = {
+    source: "https://cdn.example/embedseek/video.mp4",
+    subtitle: { en: "/subs/direct-en.vtt" }
+  };
+  const encrypted = encryptEmbedSeekForTest(payload);
+  const extractors = loadExtractors(async (url) => {
+    assert.equal(String(url), "https://animostream.embedseek.online/api/v1/video?id=direct-ep&w=1920&h=1080&r=www.animostream.xyz");
+    return response(encrypted);
+  });
+
+  const candidates = await extractors.embedseek("https://www.animostream.xyz/watch?id=direct-ep", {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 2,
+    referer: "https://www.animostream.xyz/"
+  });
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].url, payload.source);
+  assert.equal(candidates[0].name, "EmbedSeek - Video");
+  assert.equal(candidates[0].type, "mp4");
+  assert.equal(candidates[0].subtitles[0].url, "https://animostream.embedseek.online/subs/direct-en.vtt");
+  assert.equal(candidates[0].anilistId, "21");
+  assert.equal(candidates[0].episodeNumber, 2);
+});
+
+test("EmbedSeek fails closed on invalid ciphertext and invalid anime identity", async () => {
+  let requests = 0;
+  const extractors = loadExtractors(async () => {
+    requests++;
+    return response("not-hex-ciphertext");
+  });
+
+  assert.deepEqual(Array.from(await extractors.embedseek("https://animostream.xyz/watch?id=bad", {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 1
+  })), []);
+  assert.deepEqual(Array.from(await extractors.embedseek("https://animostream.xyz/watch?id=bad", {
+    provider: "animostream",
+    anilistId: "0",
+    episodeNumber: 1
+  })), []);
+  assert.equal(requests, 1);
+});
+
+test("Animostream routes EmbedSeek links into the shared extractor", () => {
+  const source = fs.readFileSync(path.join(root, "providers/anime/animostream.js"), "utf8");
+  assert.match(source, /ext\.embedseek\(u,/);
+});
+
+
+function streamWishPackerScript() {
+  const payload = 'var player={file:"0",tracks:[{file:"1",kind:"captions",label:"English"}]};';
+  const symbols = "https://cdn.example/streamwish/master.m3u8|https://subs.example/streamwish-en.vtt";
+  return '<script>eval(function(p,a,c,k,e,d){return p;}(' +
+    "'" + payload + "',36,2,'" + symbols + "'.split('|'),0,{}))</script>";
+}
+
+test("StreamWish follows Synchrony server selection, P.A.C.K.E.R., HLS and caption parsing", async () => {
+  const calls = [];
+  const mainJs = 'var dmca = ["dmca-cdn.example"]; var main = ["main-cdn.example"]; var rules = ["streamwish.com"];';
+  const packed = streamWishPackerScript();
+  const extractors = loadExtractors(async (url, options = {}) => {
+    const value = String(url);
+    calls.push({ url: value, options });
+    if (value === "https://streamwish.com/abc") {
+      return response('<html><body><script src="/assets/main.js?v=2"></script></body></html>', { url: value });
+    }
+    if (value === "https://streamwish.com/assets/main.js?v=2") {
+      return response(mainJs, { url: value });
+    }
+    if (value === "https://main-cdn.example/e/abc") {
+      return response(packed, { url: value });
+    }
+    if (value === "https://cdn.example/streamwish/master.m3u8") {
+      return response([
+        "#EXTM3U",
+        "#EXT-X-STREAM-INF:BANDWIDTH=5200000,RESOLUTION=1920x1080",
+        "1080/index.m3u8",
+        "#EXT-X-STREAM-INF:BANDWIDTH=2200000,RESOLUTION=1280x720",
+        "720/index.m3u8"
+      ].join("\n"));
+    }
+    throw new Error("Unexpected StreamWish request " + value);
+  }, true);
+
+  const candidates = await extractors.streamwish("https://streamwish.com/e/abc", {
+    provider: "animostream",
+    anilistId: "21",
+    episodeNumber: 6,
+    referer: "https://www.animostream.xyz/",
+    pageHeaders: { Referer: "https://www.animostream.xyz/" }
+  });
+
+  assert.deepEqual(calls.slice(0, 3).map((call) => call.url), [
+    "https://streamwish.com/abc",
+    "https://streamwish.com/assets/main.js?v=2",
+    "https://main-cdn.example/e/abc"
+  ]);
+  assert.equal(calls[0].options.headers.Referer, "https://www.animostream.xyz/");
+  assert.ok(candidates.some((item) =>
+    item.url === "https://cdn.example/streamwish/1080/index.m3u8" &&
+    item.quality === "1080p" &&
+    item.name === "StreamWish - 1080p"
+  ));
+  assert.ok(candidates.some((item) =>
+    item.url === "https://cdn.example/streamwish/720/index.m3u8" &&
+    item.quality === "720p"
+  ));
+  assert.ok(candidates.every((item) => item.provider === "animostream"));
+  assert.ok(candidates.every((item) => item.anilistId === "21" && item.episodeNumber === 6));
+  assert.ok(candidates.every((item) =>
+    item.subtitles.some((sub) =>
+      sub.url === "https://subs.example/streamwish-en.vtt" && sub.lang === "English"
+    )
+  ));
+  assert.ok(candidates.every((item) => item.headers.Referer === "https://cdn.example/"));
+});
+
 test("StreamWish chooses the DMCA server when the embed host is not in rules", async () => {
   const calls = [];
   const mainJs = 'var dmca = ["dmca-cdn.example"]; var main = ["main-cdn.example"]; var rules = ["other.example"];';
