@@ -21,6 +21,19 @@ const providerFiles = [
   "providers/anime/allanime.js"
 ];
 
+function encryptEmbedSeekForTest(payload) {
+  const cipher = createCipheriv(
+    "aes-128-cbc",
+    Buffer.from("kiemtienmua911ca", "utf8"),
+    Buffer.from("1234567890oiuytr", "utf8")
+  );
+  const encrypted = Buffer.concat([
+    cipher.update(JSON.stringify(payload), "utf8"),
+    cipher.final()
+  ]);
+  return encrypted.toString("hex");
+}
+
 function response(body, options = {}) {
   return {
     ok: options.status ? options.status >= 200 && options.status < 300 : true,
