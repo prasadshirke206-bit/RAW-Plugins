@@ -35,10 +35,12 @@
     };
   }
 
-  async function request(url, headers, timeoutMs) {
+  async function request(url, headers, timeoutMs, init) {
     var timer;
+    var requestOptions = Object.assign({}, init || {});
+    requestOptions.headers = Object.assign({}, (init && init.headers) || {}, headers || {});
     var response = await Promise.race([
-      fetch(url, { headers: headers || {} }),
+      fetch(url, requestOptions),
       new Promise(function (_, reject) {
         timer = setTimeout(function () { reject(new Error("extractor request timeout")); }, timeoutMs || 10000);
       })
@@ -729,7 +731,598 @@
     }
   }
 
+
+  function packerUnbase(value, radix) {
+    var token = String(value);
+    if (radix >= 2 && radix <= 36) {
+      var lower = token.toLowerCase();
+      var digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+      var result = 0;
+      if (!lower) return 0;
+      for (var i = 0; i < lower.length; i++) {
+        var digit = digits.indexOf(lower.charAt(i));
+        if (digit < 0 || digit >= radix) return 0;
+        result = result * radix + digit;
+        if (!Number.isSafeInteger(result)) return 0;
+      }
+      return result;
+    }
+
+    var selector = radix > 62 ? 95 : radix > 54 ? 62 : radix > 52 ? 54 : 52;
+    var alphabet95 = " !\"#$%&\\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\\\]^_" +
+      String.fromCharCode(96) + "abcdefghijklmnopqrstuvwxyz{|}~";
+    var alphabets = {
+      52: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP",
+      54: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR",
+      62: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      95: alphabet95
+    };
+    var alphabet = alphabets[selector] || "";
+    var total = 0;
+    var reversed = token.split("").reverse();
+    for (var j = 0; j < reversed.length; j++) {
+      var index = alphabet.indexOf(reversed[j]);
+      if (index < 0) index = 0;
+      total += Math.pow(radix, j) * index;
+      if (!Number.isSafeInteger(total)) return 0;
+    }
+    return Math.trunc(total);
+  }
+
+  function packerUnpack(script) {
+    var source = String(script || "");
+    var packedRegex = /eval\(function\(p,a,c,k,e,[rd]?/i;
+    if (!packedRegex.test(source)) return [];
+    var extractRegex = /}\s*\('(.*)',\s*(\d+),\s*(\d+),\s*'(.*?)'\.split\('\|'\)/gims;
+    var matches = [];
+    var match;
+    while ((match = extractRegex.exec(source)) !== null) {
+      var payload = match[1];
+      var radix = Number(match[2]) || 10;
+      var count = Number(match[3]);
+      var symbols = match[4].split("|");
+      if (!Number.isFinite(count) || symbols.length !== count) continue;
+      var decoded = payload.replace(/\b[a-zA-Z0-9_]+\b/g, function (word) {
+        var index = packerUnbase(word, radix);
+        var replacement = index >= 0 && index < symbols.length ? symbols[index] : "";
+        return replacement || word;
+      });
+      if (decoded.trim()) matches.push(decoded);
+    }
+    return matches;
+  }
+
+  function embedSeekHexBytes(value) {
+    var hex = String(value || "").trim();
+    if (!hex || hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) return null;
+    var bytes = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+  }
+
+  async function embedseek(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var sourceUrl = String(url);
+      var id;
+      if (sourceUrl.indexOf("#") >= 0) {
+        id = sourceUrl.substring(sourceUrl.indexOf("#") + 1).split("&")[0];
+      } else if (sourceUrl.indexOf("id=") >= 0) {
+        id = sourceUrl.substring(sourceUrl.indexOf("id=") + 3).split("&")[0];
+      } else {
+        id = sourceUrl.substring(sourceUrl.lastIndexOf("/") + 1).split("?")[0].split("#")[0];
+      }
+      if (!id) return [];
+
+      var apiUrl = "https://animostream.embedseek.online/api/v1/video?id=" + id +
+        "&w=1920&h=1080&r=www.animostream.xyz";
+      var requestHeaders = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": String(options.referer || "https://www.animostream.xyz/")
+      };
+      var response = await request(apiUrl, requestHeaders, 12000);
+      var hexData = String(await response.text() || "").trim();
+      var encrypted = embedSeekHexBytes(hexData);
+      if (!encrypted) return [];
+      if (!root.crypto || !root.crypto.subtle) return [];
+
+      var keyBytes = utf8Bytes("kiemtienmua911ca");
+      var ivBytes = utf8Bytes("1234567890oiuytr");
+      var key = await root.crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["decrypt"]);
+      var plaintext = await root.crypto.subtle.decrypt({ name: "AES-CBC", iv: ivBytes }, key, encrypted);
+      var data;
+      try {
+        data = JSON.parse(bytesToUtf8(new Uint8Array(plaintext)));
+      } catch (_) {
+        return [];
+      }
+      if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+
+      var subtitles = [];
+      var subtitleObject = data.subtitle;
+      if (subtitleObject && typeof subtitleObject === "object" && !Array.isArray(subtitleObject)) {
+        var languageKeys = Object.keys(subtitleObject);
+        for (var i = 0; i < languageKeys.length; i++) {
+          var languageKey = languageKeys[i];
+          var subPath = String(subtitleObject[languageKey] || "");
+          if (!subPath.trim()) continue;
+          var fullSubUrl = /^https?:\/\//i.test(subPath)
+            ? subPath
+            : "https://animostream.embedseek.online" + subPath.split("#")[0];
+          var lang = languageKey.toLowerCase() === "en"
+            ? "English"
+            : languageKey.toLowerCase() === "hi"
+              ? "Hindi"
+              : languageKey.toUpperCase();
+          if (/^https?:\/\//i.test(fullSubUrl)) subtitles.push({ url: fullSubUrl, lang: lang });
+        }
+      }
+
+      var mediaUrl = String(data.source || "").trim();
+      if (!mediaUrl) mediaUrl = String(data.hlsVideoTiktok || "").trim();
+      if (!mediaUrl) mediaUrl = String(data.cf || "").trim();
+      if (!mediaUrl) return [];
+
+      var streamHeaders = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://animostream.embedseek.online/"
+      };
+
+      if (/\.m3u8(?:$|[?#])/i.test(mediaUrl)) {
+        var videos;
+        try {
+          videos = await hlsCandidates(
+            mediaUrl, options, "EmbedSeek -", streamHeaders, subtitles
+          );
+        } catch (_) {
+          videos = [];
+        }
+        if (videos && videos.length) return videos;
+        var fallback = candidate(
+          options, mediaUrl, "EmbedSeek - Auto", "Auto", "m3u8", streamHeaders, subtitles
+        );
+        return fallback ? [fallback] : [];
+      }
+
+      var direct = candidate(options, mediaUrl, "EmbedSeek - Video", "Auto", "mp4", streamHeaders, subtitles);
+      return direct ? [direct] : [];
+    } catch (error) {
+      if (options.log) options.log("[EmbedSeek] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+
+  function synchronyDeobfuscate(script) {
+    var api = root && root.RAW_SYNCHRONY;
+    if (!api || typeof api.Deobfuscator !== "function") return null;
+    var output = null;
+    var consoleRef = root.console;
+    var saved = {};
+    try {
+      if (consoleRef) {
+        ["log", "warn", "error", "trace"].forEach(function (key) {
+          saved[key] = consoleRef[key];
+          consoleRef[key] = function () {};
+        });
+      }
+      output = new api.Deobfuscator().deobfuscateSource(String(script || ""));
+      return typeof output === "string" && output.trim() ? output : null;
+    } catch (_) {
+      return null;
+    } finally {
+      if (consoleRef) {
+        ["log", "warn", "error", "trace"].forEach(function (key) {
+          try {
+            if (saved[key] === undefined) delete consoleRef[key];
+            else consoleRef[key] = saved[key];
+          } catch (_) {}
+        });
+      }
+    }
+  }
+
+  function streamWishServerList(script, name) {
+    var expression = new RegExp(name + "\\s*=\\s*\\[([\\s\\S]*?)]", "i");
+    var match = expression.exec(String(script || ""));
+    if (!match) return [];
+    return match[1].split(",").map(function (value) {
+      return value.trim().replace(/^["']|["']$/g, "");
+    }).filter(Boolean);
+  }
+
+  function streamWishEmbedUrl(url) {
+    var source = String(url || "");
+    var marker = source.indexOf("/f/");
+    return marker >= 0
+      ? "https://streamwish.com/" + source.substring(marker + 3)
+      : source;
+  }
+
+  function streamWishEmbedId(url) {
+    var match = /.*\/[efd]\/([a-zA-Z0-9]+)/.exec(String(url || ""));
+    return match ? match[1] : String(url || "");
+  }
+
+  function streamWishPick(values) {
+    if (!values || !values.length) return "";
+    return String(values[Math.floor(Math.random() * values.length)] || "");
+  }
+
+  function streamWishSubtitles(script, baseUrl) {
+    try {
+      var source = String(script || "");
+      var tracksAt = source.indexOf("tracks");
+      if (tracksAt < 0) return [];
+      var openAt = source.indexOf("[", tracksAt);
+      if (openAt < 0) return [];
+      var closeAt = source.indexOf("]", openAt + 1);
+      if (closeAt < 0) return [];
+      var text = source.substring(openAt + 1, closeAt);
+      var fixed = text.replace(/\b(file|kind|label)\b/g, function (word, _capture, offset, whole) {
+        var before = whole.charAt(offset - 1);
+        var after = whole.charAt(offset + word.length);
+        return before === "\"" || after === "\"" ? word : "\"" + word + "\"";
+      });
+      var list = JSON.parse("[" + fixed + "]");
+      if (!Array.isArray(list)) return [];
+      var subtitles = [];
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (!item || typeof item !== "object" || String(item.kind || "").toLowerCase() !== "captions") continue;
+        var file = String(item.file || "");
+        if (!file) continue;
+        var subtitleUrl = absolute(file, baseUrl);
+        if (subtitleUrl && /^https:\/\//i.test(subtitleUrl)) {
+          subtitles.push({ url: subtitleUrl, lang: String(item.label || "") });
+        }
+      }
+      return subtitles;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function streamwish(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    var originalUrl = String(url);
+    var embedUrl = streamWishEmbedUrl(originalUrl);
+    var embed;
+    var input;
+    try {
+      embed = new URL(embedUrl);
+      input = new URL(originalUrl);
+    } catch (_) {
+      return [];
+    }
+    var id = streamWishEmbedId(originalUrl);
+    var absoluteId = /^https?:\/\//i.test(id);
+    var domains = absoluteId ? [""] : ["streamwish.com", "niramirus.com", "medixiru.com"];
+    var requestHeaders = Object.assign(
+      {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": String(options.referer || options.pageHeaders && options.pageHeaders.Referer || embed.origin + "/")
+      },
+      options.pageHeaders || {}
+    );
+
+    for (var domainIndex = 0; domainIndex < domains.length; domainIndex++) {
+      var fullUrl = absoluteId
+        ? id
+        : "https://" + domains[domainIndex] + "/" + id.replace(/^\/+/g, "");
+      try {
+        var pageResponse = await request(fullUrl, requestHeaders, 12000);
+        var html = await pageResponse.text();
+        var pageUrl = pageResponse.url || fullUrl;
+        var scriptTags = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+        var mainTag = scriptTags.find(function (tag) {
+          return /src\s*=\s*["'][^"']*\/main\.js(?:[?#][^"']*)?["']/i.test(tag);
+        });
+
+        if (mainTag) {
+          var scriptSrc = (mainTag.match(/src\s*=\s*(["'])(.*?)\1/i) || [,"",""])[2];
+          var mainScriptUrl = absolute(scriptSrc, pageUrl);
+          if (!mainScriptUrl || !/^https:\/\//i.test(mainScriptUrl)) continue;
+          var mainResponse = await request(mainScriptUrl, requestHeaders, 12000);
+          var mainScript = await mainResponse.text();
+          var cleanScript = synchronyDeobfuscate(mainScript);
+          if (!cleanScript) continue;
+
+          var dmcaServers = streamWishServerList(cleanScript, "dmca");
+          var mainServers = streamWishServerList(cleanScript, "main");
+          var rulesServers = streamWishServerList(cleanScript, "rules");
+          var selectedServers = rulesServers.indexOf(embed.hostname) >= 0 ? mainServers : dmcaServers;
+          var destination = streamWishPick(selectedServers);
+          if (!destination || /[\/@?#]/.test(destination)) continue;
+
+          var destinationUrl;
+          try {
+            destinationUrl = new URL("https://" + destination);
+            if (destinationUrl.username || destinationUrl.password || destinationUrl.pathname !== "/" ||
+                destinationUrl.search || destinationUrl.hash) continue;
+          } catch (_) {
+            continue;
+          }
+
+          var redirectedUrl = new URL(embedUrl);
+          redirectedUrl.hostname = destinationUrl.hostname;
+          redirectedUrl.port = destinationUrl.port;
+          var redirectedPage = streamWishEmbedUrl(redirectedUrl.toString());
+          var redirectedResponse = await request(redirectedPage, requestHeaders, 12000);
+          html = await redirectedResponse.text();
+          pageUrl = redirectedResponse.url || redirectedPage;
+        }
+
+        var playerScript = (html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [])
+          .map(function (tag) {
+            return (tag.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i) || [,""])[1];
+          })
+          .find(function (source) { return /m3u8/i.test(source); });
+        if (!playerScript) continue;
+
+        var unpacked = playerScript;
+        if (playerScript.indexOf("eval(function(p,a,c") >= 0) {
+          var unpackedParts = packerUnpack(playerScript);
+          if (!unpackedParts.length) continue;
+          unpacked = unpackedParts.join(" ");
+        }
+
+        var masterMatch = /https[^"]*m3u8[^"]*/i.exec(unpacked);
+        if (!masterMatch || !masterMatch[0]) continue;
+        var masterUrl = absolute(masterMatch[0], pageUrl);
+        if (!masterUrl || !/^https:\/\//i.test(masterUrl)) continue;
+
+        var subtitles = streamWishSubtitles(unpacked, masterUrl);
+        var masterOrigin = new URL(masterUrl).origin;
+        var streamHeaders = {
+          "User-Agent": requestHeaders["User-Agent"],
+          "Referer": masterOrigin + "/"
+        };
+        var videos = await hlsCandidates(
+          masterUrl, options, "StreamWish -", streamHeaders, subtitles
+        );
+        if (videos.length) return videos;
+      } catch (error) {
+        if (absoluteId) {
+          if (options.log) options.log("[StreamWish] " + String(error && error.message || error));
+          return [];
+        }
+      }
+    }
+    return [];
+  }
+
+
+  function htmlAttribute(tag, name) {
+    var re = new RegExp("\\b" + name + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))", "i");
+    var match = String(tag || "").match(re);
+    return match ? (match[1] || match[2] || match[3] || "") : "";
+  }
+
+  function openingTagWithClass(html, tagName, className) {
+    var tags = String(html || "").match(new RegExp("<" + tagName + "\\b[^>]*>", "gi")) || [];
+    for (var i = 0; i < tags.length; i++) {
+      var classValue = htmlAttribute(tags[i], "class").split(/\s+/);
+      if (classValue.indexOf(className) >= 0) return tags[i];
+    }
+    return "";
+  }
+
+  function gogoDigits(html, tagName, className, marker) {
+    var tag = className === "body"
+      ? ((String(html || "").match(/<body\b[^>]*>/i) || [""])[0])
+      : openingTagWithClass(html, tagName, className);
+    var cls = htmlAttribute(tag, "class");
+    var value = cls.substring(cls.indexOf(marker) + marker.length);
+    return new Uint8Array(Array.from(value).filter(function (ch) { return /\d/.test(ch); }).map(function (ch) { return ch.charCodeAt(0); }));
+  }
+
+  async function aesCbc(data, keyBytes, ivBytes, operation) {
+    if (!root.crypto || !root.crypto.subtle) throw new Error("AES-CBC requires WebCrypto");
+    var key = await root.crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, [operation]);
+    var result = await root.crypto.subtle[operation]({ name: "AES-CBC", iv: ivBytes }, key, data);
+    return new Uint8Array(result);
+  }
+
+  async function gogostream(serverUrl, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(serverUrl || ""))) return [];
+    try {
+      var page = await request(serverUrl, options.pageHeaders || {}, 12000);
+      var html = await page.text();
+      var iv = gogoDigits(html, "div", "wrapper", "container-");
+      var secretKey = gogoDigits(html, "body", "body", "container-");
+      var decryptKey = gogoDigits(html, "div", "videocontent", "videocontent-");
+      var scriptTag = (html.match(/<script\b[^>]*data-value=[^>]*>/i) || [""])[0];
+      var encryptedParams = htmlAttribute(scriptTag, "data-value");
+      if (!iv.length || !secretKey.length || !decryptKey.length || !encryptedParams) return [];
+      var decodedParams = bytesToUtf8(await aesCbc(decodeBase64Bytes(encryptedParams), secretKey, iv, "decrypt"));
+      decodedParams = decodedParams.substring(decodedParams.indexOf("&") + 1);
+      var input = new URL(serverUrl);
+      var id = input.searchParams.get("id");
+      if (!id) return [];
+      var encryptedId = encodeBase64NoPadding(await aesCbc(utf8Bytes(id), secretKey, iv, "encrypt"));
+      var ajaxUrl = input.origin + "/encrypt-ajax.php?id=" + encodeURIComponent(encryptedId) +
+        "&" + decodedParams + "&alias=" + encodeURIComponent(id);
+      var ajax = await request(ajaxUrl, { "X-Requested-With": "XMLHttpRequest" }, 10000);
+      var envelope = await ajax.json();
+      if (!envelope || typeof envelope.data !== "string") return [];
+      var decryptedJson = bytesToUtf8(await aesCbc(decodeBase64Bytes(envelope.data), decryptKey, iv, "decrypt"));
+      var decoded = JSON.parse(decryptedJson);
+      var sources = decoded && decoded.source;
+      if (!Array.isArray(sources)) return [];
+      var prefix = input.searchParams.has("token") ? "Gogostream - " : "Vidstreaming - ";
+      var out = [];
+      if (sources.length === 1 && String(sources[0].type || "").toLowerCase() === "hls") {
+        return await hlsCandidates(sources[0].file, options, prefix, { Referer: serverUrl }, options.subtitles || []);
+      }
+      for (var i = 0; i < sources.length; i++) {
+        var item = sources[i] || {};
+        if (!item.file || !/^https:\/\//i.test(item.file)) continue;
+        var label = prefix + String(item.label || "Auto");
+        var video = candidate(options, item.file, label, String(item.label || "Auto"), "mp4", { Referer: serverUrl }, options.subtitles || []);
+        if (video) out.push(video);
+      }
+      return out;
+    } catch (error) {
+      if (options.log) options.log("[GogoStream] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+  function decodeOkruOptions(value) {
+    var raw = String(value || "")
+      .replace(/&quot;/gi, "\"")
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/&amp;/gi, "&")
+      .replace(/\\u0026/gi, "&")
+      .replace(/\\\//g, "/");
+    try {
+      return JSON.parse(raw);
+    } catch (_) {}
+    var out = {};
+    ["ondemandHls", "ondemandDash"].forEach(function (key) {
+      var quoted = new RegExp("[\"']?" + key + "[\"']?\\s*:\\s*[\"']([^\"']+)[\"']", "i");
+      var match = quoted.exec(raw);
+      if (match) out[key] = match[1].replace(/\\u0026/gi, "&").replace(/\\\//g, "/");
+    });
+    var videos = raw.match(/"videos"\s*:\s*(\[[\s\S]*?\])/i);
+    if (videos) {
+      try { out.videos = JSON.parse(videos[1]); } catch (_) {}
+    }
+    return out;
+  }
+
+  function okruQuality(name, fixQualities) {
+    var value = String(name || "").replace(/^\"|\"$/g, "");
+    if (!fixQualities) return value || "Auto";
+    var map = { ultra: "2160p", quad: "1440p", full: "1080p", hd: "720p", sd: "480p", low: "360p", lowest: "240p", mobile: "144p" };
+    return map[value.toLowerCase()] || value || "Auto";
+  }
+
+  async function okru(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var headers = options.pageHeaders || {};
+      var page = await request(url, headers, 12000);
+      var html = await page.text();
+      var tag = (html.match(/<div\b[^>]*data-options=[^>]*>/i) || [""])[0];
+      var rawOptions = htmlAttribute(tag, "data-options");
+      if (!rawOptions) return [];
+      var data = decodeOkruOptions(rawOptions);
+      var prefix = String(options.labelPrefix || "");
+      if (data.ondemandHls) {
+        return await hlsCandidates(data.ondemandHls, options, (prefix ? prefix + " " : "") + "Okru:", headers, options.subtitles || []);
+      }
+      if (data.ondemandDash) {
+        var dash = candidate(options, data.ondemandDash, (prefix ? prefix + " " : "") + "Okru: Dash", "Auto", "mpd", headers, options.subtitles || []);
+        return dash ? [dash] : [];
+      }
+      var videos = Array.isArray(data.videos) ? data.videos.slice().reverse() : [];
+      var out = [];
+      videos.forEach(function (item) {
+        if (!item || !item.url || !/^https?:\/\//i.test(item.url)) return;
+        var q = okruQuality(item.name, options.fixQualities !== false);
+        var label = (prefix ? prefix + " " : "") + "Okru:" + q;
+        var video = candidate(options, item.url, label, q, "mp4", headers, options.subtitles || []);
+        if (video) out.push(video);
+      });
+      return out;
+    } catch (error) {
+      if (options.log) options.log("[OK.ru] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+  async function mp4upload(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var headers = Object.assign({}, options.pageHeaders || {}, { Referer: "https://mp4upload.com/" });
+      var page = await request(url, headers, 12000);
+      var html = await page.text();
+      var scripts = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+      var script = scripts.map(function (tag) {
+        return (tag.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i) || [,""])[1];
+      }).find(function (body) {
+        return /eval\(function\(p,a,c,k,e,d\)/i.test(body) || /player\.src|\.src\(/i.test(body);
+      }) || "";
+      if (!script) return [];
+      if (/eval\(function\(p,a,c,k,e,d\)/i.test(script)) {
+        var unpacked = packerUnpack(script);
+        if (unpacked.length) script = unpacked.join("\n");
+      }
+      var videoUrl = (script.match(/\.src\s*\(\s*["']([^"']+)["']\s*\)/i) ||
+        script.match(/\bsrc\s*:\s*["']([^"']+)["']/i) || [,""])[1];
+      if (!videoUrl || !/^https?:\/\//i.test(videoUrl)) return [];
+      var height = (script.match(/\WHEIGHT=(\d+)/i) || [,""])[1];
+      var qualityLabel = height ? height + "p" : "Unknown resolution";
+      var title = (options.labelPrefix ? options.labelPrefix + " " : "") + "Mp4Upload - " + qualityLabel;
+      var video = candidate(options, videoUrl, title, height ? quality(height) : "Auto", "mp4", headers, options.subtitles || []);
+      return video ? [video] : [];
+    } catch (error) {
+      if (options.log) options.log("[Mp4Upload] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+  async function streamlare(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var id = new URL(url).pathname.split("/").filter(Boolean).pop();
+      if (!id) return [];
+      var response = await request("https://slwatch.co/api/video/stream/get", {}, 10000, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id })
+      });
+      var body = await response.text();
+      var type = (body.match(/"type"\s*:\s*"([^"]+)"/i) || [, ""])[1];
+      var prefix = String(options.labelPrefix || "");
+      if (type === "hls") {
+        var master = (body.match(/"file"\s*:\s*"([^"]+)"/i) || [, ""])[1] || "";
+        master = master.replace(/\\\//g, "/").replace(/&amp;/g, "&");
+        if (!/^https:\/\//i.test(master)) return [];
+        return await hlsCandidates(master, options, (prefix ? prefix + " " : "") + "Streamlare:", {}, options.subtitles || []);
+      }
+
+      // The Kotlin extractor iterates each "label" block, POSTs its "file"
+      // API URL, then uses the final redirect URL as the actual media source.
+      var blocks = body.split(/"label"\s*:\s*"/i).slice(1), out = [];
+      for (var i = 0; i < blocks.length; i++) {
+        var block = blocks[i];
+        var label = block.split('"')[0].replace(/\\"/g, '"');
+        var apiUrl = (block.match(/"file"\s*:\s*"([^"]+)"/i) || [, ""])[1] || "";
+        apiUrl = apiUrl.replace(/\\\//g, "/").replace(/\\\\/g, "");
+        if (!/^https?:\/\//i.test(apiUrl)) continue;
+        var redirected = await request(apiUrl, {}, 10000, { method: "POST" });
+        var mediaUrl = redirected.url || apiUrl;
+        if (!/^https:\/\//i.test(mediaUrl)) continue;
+        var title = (prefix ? prefix + " " : "") + "Streamlare:" + (label || "Auto");
+        var video = candidate(options, mediaUrl, title, label || "Auto", "mp4", {}, options.subtitles || []);
+        if (video) out.push(video);
+      }
+      return out;
+    } catch (error) {
+      if (options.log) options.log("[Streamlare] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
   root.RAWAnimeExtractors = {
+    streamwish: streamwish,
+    embedseek: embedseek,
+    unpackPacker: packerUnpack,
+    gogostream: gogostream,
+    okru: okru,
+    mp4upload: mp4upload,
+    streamlare: streamlare,
     abyss: abyss,
     dood: dood,
     streamtape: streamtape,

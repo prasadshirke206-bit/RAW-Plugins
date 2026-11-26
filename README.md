@@ -39,6 +39,8 @@ Anime has a separate contract:
 
 The same QuickJS engine and fetch bridge are used. The host must route anime through the anime argument contract and must validate candidate identity against the exact selected AniList title and episode. Do not pass a TMDB ID to an anime provider.
 
+NetMirror (Net77) remains in the movie/TV catalogue but is disabled until RAW can hand off a legitimate, user-completed verification session. Its synthetic reCAPTCHA response path is not used.
+
 
 ## Anime port parity and Kotlin-source removal gate
 
@@ -50,9 +52,9 @@ The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScrip
 
 | Provider | Implemented in QuickJS | Known host/runtime boundary |
 |---|---|---|
-| AllAnime | AniList lookup, GraphQL search/episode request, XOR source URL decoding, AES-GCM payload handling, internal clock endpoint, public HLS/MP4 links | AES-GCM requires QuickJS WebCrypto. External hosters requiring native extractor modules are only returned when the page exposes a direct media URL |
+| AllAnime | AniList GraphQL resolution, all Kotlin XOR source modes, AES-GCM episode decoding, and `/apivtwo/clock.json` MP4, HLS, adaptive iframe HLS/DASH and DASH audio/video rendition parsing; mapped GogoStream, Dood, OK.ru, Mp4Upload, Streamlare and StreamWish extraction | Requires QuickJS WebCrypto. Filemoon is intentionally unsupported because the available route requires an automated challenge/PoW flow; native browser-only routes remain outside the plugin runtime |
 | Anikage | AniList title mapping, browse/detail/episode/server/source requests, Koto/Rai routes, proxy token resolution, HLS variants and subtitles | Hosts requiring the original Android loopback HLS relay are omitted |
-| Anikoto | VRF search transform, AJAX episode/server flow, mapper results, MegaPlay AES-CBC source parsing, HLS variants and subtitles | Does not forge expiring CDN HMAC tokens or solve browser challenges; those streams need a host/native resolver |
+| Anikoto | Kotlin-compatible VRF episode-list signing, mirror/title matching, server and mapper fallback, MegaPlay AES-CBC source decryption, 90-second HMAC-SHA256 CDN token generation, ASS-first subtitle selection and intro/outro metadata | Browser verification/challenge-dependent routes remain unsupported; real endpoint and device playback verification are still outstanding |
 | AniLight | AniList-backed API lookup, episode matching, public MegaPlay embed, AES-CBC source parsing, HLS variants and subtitles | Non-MegaPlay routes relying on WebView/Turnstile require a host-provided browser capability; QuickJS does not emulate that browser |
 | Miruro | AniList episode matching, secure-pipe envelope and XOR/gzip response decoding, provider/subtype fallback, rotating proxy configuration, direct HLS relay URLs and source subtitle tracks | Uses ordinary HTTP requests and fails closed on WAF/Cloudflare denial. Android-only embed extractors and local HLS relay are not emulated |
 | AniChan | AniList ID → episodes/servers API, direct HLS/MP4 and subtitle tracks | Non-direct embed resolvers are omitted |
@@ -62,12 +64,12 @@ The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScrip
 | Ani.pm | AniList API → playback bootstrap → Settlar session → HLS + subtitles | Uses public session endpoints; no native local proxy is emulated |
 | AnimeSaga | AniList GraphQL → encrypted episodes/stream JSON → direct HLS/MP4 | Android local proxy and hoster-specific extractors are omitted |
 | Anitummy | AniList episode → Fast MegaPlay + VidNest direct-media discovery + Kiwi/Net/Ally sub/dub stream APIs → direct HLS/MP4 + captions | Dood/VidHide hoster extraction and native HLS integration remain incomplete; Cloudflare/session-denied routes fail closed |
-| AnimeSalt | Exact AniList title → WordPress episode/server data → MegaPlay + AS-CDN/FirePlayer POST → HLS variants (mocked contract tests included) | Abyss, Dood, Filemoon, StreamTape, VidMoly and Universal extractor paths remain incomplete |
+| AnimeSalt | AniList title mapping, WordPress episode/server parsing, MegaPlay AES-CBC, AS-CDN/FirePlayer POST-to-HLS, and shared Abyss AES-CTR plus VidMoly extraction | Dood, StreamTape, Filemoon and UniversalExtractor routes are not fully ported; browser and native playlist-proxy capabilities remain RAW host work |
 | FourAnimo | AniList title mapping → page token/AJAX episode list → M/R/ReCloud source endpoint | Only observed direct HLS playlists are returned |
 | AniMoTVSlash | Exact title lookup → episode/mirror parsing → directly visible HLS | Specialized StreamWish/VidHide/Vidara extractors are not emulated |
 | AniNeko | Exact title lookup → episode/server buttons → directly visible HLS/MP4 | Native loopback proxy and specialized hoster extractors are not emulated |
 | AnimeStream | Exact title mapping → paginated season/episode API → locale, alternate-audio and hard-sub HLS playlists | Streams requiring the native encrypted-key proxy are omitted |
-| Animostream | Exact title lookup → Blogger animeData season/server arrays → direct HLS/MP4 | Specialized hoster extractors are not emulated |
+| Animostream | AniList title matching, Blogger animeData season/server parsing, direct HLS/MP4, and shared Abyss, Dood, StreamTape, VidMoly, EmbedSeek and StreamWish extraction | UniversalExtractor and native playlist-proxy branches remain RAW host work; Filemoon challenge/PoW flow is intentionally unsupported |
 
 The original Kotlin source files under `anime/providers/` remain unchanged. The JavaScript files are separate runtime ports, not a claim that every Android-only capability can be reproduced inside QuickJS.
 

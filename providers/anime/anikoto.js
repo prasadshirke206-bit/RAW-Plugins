@@ -1,13 +1,14 @@
 /*
  * Anikoto — RAW QuickJS anime provider ported from the original Kotlin source
- * and AnikotoTheme multisource contract. It does not forge short-lived signed
- * CDN tokens or emulate a browser verification challenge.
+ * and AnikotoTheme multisource contract, including episode VRF and MegaPlay
+ * AES-CBC/HMAC stream signing. Browser-only session challenges remain native-host work.
  */
 var ANIKOTO_ID = "anikoto";
 var ANIKOTO_MIRRORS = ["https://anikototv.bz", "https://anikototv.to", "https://anikoto.cz", "https://anikoto.me", "https://anikoto.net", "https://anikototv.se", "https://anikototv.com"];
 var ANIKOTO_MAPPER = "https://mapper.nekostream.site/api";
 var ANIKOTO_MEGA_KEY = "i?LMTAx0Q6,:}50U";
 var ANIKOTO_MEGA_IV = "W0;27ToaUpl_P%'c";
+var ANIKOTO_MEGA_TOKEN_SECRET = "MpCdnT0k3n!9f2K#xQ7vL5mR8wN1pY4s";
 var ANIKOTO_HEADERS = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36", "Accept": "text/html,application/json,application/xhtml+xml,*/*", "Referer": ANIKOTO_MIRRORS[0] + "/" };
 function koContext() { return (typeof globalThis !== "undefined" && globalThis.__CALL_ARGS__) || {}; }
 function koTimeout(p, ms) { var timer; return Promise.race([p, new Promise(function (_, reject) { timer = setTimeout(function () { reject(new Error("Anikoto timeout")); }, ms || 10000); })]).then(function (v) { clearTimeout(timer); return v; }, function (e) { clearTimeout(timer); throw e; }); }
@@ -84,12 +85,19 @@ function koVrfEncrypt(input) {
 }
 function koExactTitle(text, meta) { var n = koNorm(text); return (meta.titles || []).some(function (x) { return n && n === koNorm(x); }); }
 function koAbs(base, value) { try { return new URL(value, base).toString(); } catch (_) { return value; } }
+function koMapperDisplayName(key) {
+  var normalized = String(key || "").toLowerCase();
+  if (normalized === "gogoanime") return "Vidstream";
+  if (normalized === "anivibe") return "Vibe-Stream";
+  if (normalized === "animepahe") return "Kiwi-Stream";
+  return String(key || "");
+}
 function koCandidate(url, title, quality, type, lang, headers, subtitles) {
   if (!url || !/^https:\/\//i.test(url)) return null;
   return { name: "Anikoto | " + title, title: title, url: url, quality: quality || "Auto", type: type || "m3u8", provider: ANIKOTO_ID, language: lang || undefined, headers: headers || ANIKOTO_HEADERS, subtitles: subtitles || [] };
 }
 function koQuality(h) { var n = Number(h || 0); if (n >= 2160) return "2160p"; if (n >= 1440) return "1440p"; if (n >= 1080) return "1080p"; if (n >= 720) return "720p"; if (n >= 480) return "480p"; if (n >= 360) return "360p"; if (n >= 240) return "240p"; if (n >= 144) return "144p"; return "Auto"; }
-function koB64Bytes(value) { var raw = atob(String(value || "").replace(/-/g, "+").replace(/_/g, "/")); var bytes = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i); return bytes; }
+function koB64Bytes(value) { var encoded = String(value || "").replace(/-/g, "+").replace(/_/g, "/"); while (encoded.length % 4) encoded += "="; var raw = atob(encoded); var bytes = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i); return bytes; }
 async function koDecryptMega(enc) {
   if (!enc || typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined") return "";
   try {
@@ -114,29 +122,142 @@ async function koHls(url, title, lang, headers, subtitles) {
   if (!out.length) { var plain = koCandidate(url, title, "Auto", "m3u8", lang, headers, subtitles); if (plain) out.push(plain); }
   return out;
 }
-async function koMegaPlay(embedUrl, label, lang) {
-  var headers = Object.assign({}, ANIKOTO_HEADERS, { "Referer": embedUrl });
-  var html = await (await koFetch(embedUrl, { headers: headers }, 10000)).text();
-  var id = (html.match(/data-id=["']([^"']+)["']/i) || html.match(/File\s+(\d+)/i) || [,""])[1];
-  if (!id) return [];
-  var host = (embedUrl.match(/^https?:\/\/([^/]+)/i) || [,"megaplay.buzz"])[1];
-  var data = await koJson("https://" + host + "/stream/getSources?id=" + encodeURIComponent(id) + "&st=other",
-    { headers: Object.assign({}, headers, { "Accept": "application/json,*/*", "X-Requested-With": "XMLHttpRequest" }) }, 10000);
-  var file = data && data.sources && data.sources.file;
-  if (data && data.enc) file = await koDecryptMega(data.enc) || file;
-  if (!file || !/^https:\/\//i.test(file)) return [];
-  var subs = (data.tracks || []).map(function (t) { return t && t.file && String(t.kind || "").toLowerCase() !== "thumbnails" && /^https:\/\//i.test(t.file) ? { url: t.file, lang: t.label || "Unknown" } : null; }).filter(Boolean);
-  return await koHls(file, label + " - " + lang, lang, headers, subs);
+function koBase64UrlNoPad(bytes) {
+  return koBase64Url(bytes).replace(/=+$/g, "");
 }
-async function koResolveEmbed(embed, label, lang) {
-  if (!embed || !/^https:\/\//i.test(embed)) return [];
-  if (/\.m3u8(?:$|[?#])/i.test(embed)) return await koHls(embed, label, lang, ANIKOTO_HEADERS, []);
-  if (/\.(?:mp4|mpd)(?:$|[?#])/i.test(embed)) { var ext = (embed.match(/\.(mp4|mpd)/i) || [,"mp4"])[1].toLowerCase(); var d = koCandidate(embed, label, "Auto", ext, lang, ANIKOTO_HEADERS, []); return d ? [d] : []; }
-  if (/\/stream\//i.test(embed) || /megaplay\.buzz|vidtube\.site/i.test(embed)) { try { return await koMegaPlay(embed, label, lang); } catch (_) { return []; } }
+async function koSignMegaPlayUrl(fileUrl, wasDecrypted) {
+  if (!wasDecrypted || /[?&]token=/i.test(fileUrl)) return fileUrl;
+  var match = String(fileUrl).match(/\/([a-f0-9]{32})\/([a-f0-9]{32})\//i);
+  if (!match) return fileUrl;
   try {
-    var html = await (await koFetch(embed, { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": ANIKOTO_MIRRORS[0] + "/" }) }, 8000)).text();
-    var links = html.match(/https?:\/\/[^"'\\\s<>]+?\.(?:m3u8|mp4|mpd)(?:\?[^"'\\\s<>]*)?/gi) || [], out = [];
-    for (var i = 0; i < links.length; i++) { var ext2 = (links[i].match(/\.(m3u8|mp4|mpd)/i) || [,"mp4"])[1].toLowerCase(); if (ext2 === "m3u8") out = out.concat(await koHls(links[i], label, lang, ANIKOTO_HEADERS, [])); else { var c = koCandidate(links[i], label, "Auto", ext2, lang, ANIKOTO_HEADERS, []); if (c) out.push(c); } }
+    var pathKey = match[1].toLowerCase() + "/" + match[2].toLowerCase();
+    var expiry = Math.floor(Date.now() / 1000) + 90;
+    var payload = String(expiry) + "|" + pathKey;
+    var key = await crypto.subtle.importKey(
+      "raw",
+      koUtf8(ANIKOTO_MEGA_TOKEN_SECRET),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    var signatureBytes = new Uint8Array(await crypto.subtle.sign("HMAC", key, koUtf8(payload)));
+    var token = koBase64UrlNoPad(koUtf8(payload)) + "." + koBase64UrlNoPad(signatureBytes);
+    var parsed = new URL(fileUrl);
+    parsed.searchParams.set("token", token);
+    return parsed.toString();
+  } catch (error) {
+    console.log("[Anikoto] MegaPlay signed URL generation failed: " + String(error && error.message || error));
+    return fileUrl;
+  }
+}
+function koMegaSourceFile(data) {
+  var sources = data && data.sources;
+  if (typeof sources === "string" && sources.trim()) return sources.trim();
+  if (Array.isArray(sources)) {
+    for (var i = 0; i < sources.length; i++) {
+      var item = sources[i];
+      if (typeof item === "string" && item.trim()) return item.trim();
+      if (item && typeof item.file === "string" && item.file.trim()) return item.file.trim();
+    }
+  }
+  if (sources && typeof sources.file === "string" && sources.file.trim()) return sources.file.trim();
+  return "";
+}
+async function koMegaPlay(embedUrl, label, lang, siteBase) {
+  var base = String(siteBase || ANIKOTO_MIRRORS[0]).replace(/\/+$/, "");
+  var pageHeaders = Object.assign({}, ANIKOTO_HEADERS, {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "X-Requested-With": "XMLHttpRequest",
+    "Referer": base + "/"
+  });
+  var html = await (await koFetch(embedUrl, { headers: pageHeaders }, 10000)).text();
+  var id = (html.match(/data-id=["']([^"']+)["']/i) || html.match(/File\s+(\d+)/i) || [, ""])[1];
+  if (!id) return [];
+  var embed = new URL(embedUrl);
+  var getSources = new URL(embed.origin + "/stream/getSources");
+  getSources.searchParams.set("id", id);
+  getSources.searchParams.set("st", "other");
+  var sParam = embed.searchParams.get("s");
+  if (sParam) getSources.searchParams.set("s", sParam);
+  var apiHeaders = Object.assign({}, ANIKOTO_HEADERS, {
+    "Accept": "application/json,*/*",
+    "X-Requested-With": "XMLHttpRequest",
+    "Referer": embedUrl
+  });
+  var data = await koJson(getSources.toString(), { headers: apiHeaders }, 10000);
+  var sourceFile = koMegaSourceFile(data);
+  var wasDecrypted = false;
+  if (data && data.enc) {
+    var decrypted = await koDecryptMega(data.enc);
+    if (decrypted) {
+      sourceFile = decrypted;
+      wasDecrypted = true;
+    }
+  }
+  if (!sourceFile || !/^https:\/\//i.test(sourceFile)) return [];
+  sourceFile = await koSignMegaPlayUrl(sourceFile, wasDecrypted);
+  if (!/^https:\/\//i.test(sourceFile)) return [];
+
+  var tracks = (data && data.tracks || []).filter(function (track) {
+    return track && track.file && String(track.label || "").trim() &&
+      String(track.kind || "").toLowerCase() !== "thumbnails" && /^https:\/\//i.test(track.file);
+  }).slice().sort(function (left, right) {
+    var leftAss = /\.ass(?:$|[?#])/i.test(left.file);
+    var rightAss = /\.ass(?:$|[?#])/i.test(right.file);
+    return (rightAss ? 1 : 0) - (leftAss ? 1 : 0);
+  }).filter(function (track, index, all) {
+    var trackLabel = String(track.label || "").toLowerCase();
+    return all.findIndex(function (other) { return String(other.label || "").toLowerCase() === trackLabel; }) === index;
+  }).map(function (track) {
+    return { url: track.file, lang: track.label };
+  });
+
+  var thumbnailsVtt = (data && data.tracks || []).filter(function (track) {
+    return track && String(track.kind || "").toLowerCase() === "thumbnails" && track.file;
+  }).map(function (track) { return track.file; })[0] || "";
+  var timestamps = [];
+  if (data && data.intro && (Number(data.intro.start) !== 0 || Number(data.intro.end) !== 0)) {
+    timestamps.push({ start: Number(data.intro.start), end: Number(data.intro.end), name: "Intro", type: "opening" });
+  }
+  if (data && data.outro && (Number(data.outro.start) !== 0 || Number(data.outro.end) !== 0)) {
+    timestamps.push({ start: Number(data.outro.start), end: Number(data.outro.end), name: "Outro", type: "ending" });
+  }
+
+  var host = embed.host || "megaplay.buzz";
+  var videoHeaders = Object.assign({}, ANIKOTO_HEADERS, {
+    "Referer": "https://" + host + "/",
+    "Origin": "https://" + host
+  });
+  var videos = await koHls(sourceFile, label + " - " + lang, lang, videoHeaders, tracks);
+  return videos.map(function (video) {
+    video.internalData = thumbnailsVtt;
+    video.timestamps = timestamps.length ? timestamps : (video.timestamps || []);
+    return video;
+  });
+}
+async function koResolveEmbed(embed, label, lang, siteBase) {
+  if (!embed || !/^https:\/\//i.test(embed)) return [];
+  var referer = String(siteBase || ANIKOTO_MIRRORS[0]).replace(/\/+$/, "") + "/";
+  if (/\.m3u8(?:$|[?#])/i.test(embed)) return await koHls(embed, label, lang, { Referer: referer }, []);
+  if (/\.(?:mp4|mpd)(?:$|[?#])/i.test(embed)) {
+    var ext = (embed.match(/\.(mp4|mpd)/i) || [, "mp4"])[1].toLowerCase();
+    var direct = koCandidate(embed, label, "Auto", ext, lang, { Referer: referer }, []);
+    return direct ? [direct] : [];
+  }
+  if (/\/stream\//i.test(embed) || /megaplay\.buzz|vidtube\.site/i.test(embed)) {
+    try { return await koMegaPlay(embed, label, lang, siteBase); } catch (error) {
+      console.log("[Anikoto] MegaPlay extraction failed: " + String(error && error.message || error));
+      return [];
+    }
+  }
+  try {
+    var html = await (await koFetch(embed, { headers: { "Referer": referer } }, 8000)).text();
+    var links = html.match(/https?:\/\/[^"'\\s<>]+?\.(?:m3u8|mp4|mpd)(?:\?[^"'\\s<>]*)?/gi) || [], out = [];
+    for (var i = 0; i < links.length; i++) {
+      var ext2 = (links[i].match(/\.(m3u8|mp4|mpd)/i) || [, "mp4"])[1].toLowerCase();
+      if (ext2 === "m3u8") out = out.concat(await koHls(links[i], label, lang, { Referer: referer }, []));
+      else { var candidate = koCandidate(links[i], label, "Auto", ext2, lang, { Referer: referer }, []); if (candidate) out.push(candidate); }
+    }
     return out;
   } catch (_) { return []; }
 }
@@ -186,7 +307,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var detailHtml = await (await koFetch(animeUrl, { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": baseUsed + "/" }) }, 10000)).text();
     var siteId = (detailHtml.match(/data-id=["']([^"']+)["']/i) || detailHtml.match(/data-tip=["']([^"']+)["']/i) || [,""])[1];
     if (!siteId) { console.log("[Anikoto] matched page contains no media data-id"); return []; }
-    var epResponse = await koJson(baseUsed + "/ajax/episode/list/" + encodeURIComponent(siteId) + "?vrf=", {
+    var epResponse = await koJson(baseUsed + "/ajax/episode/list/" + encodeURIComponent(siteId) + "?vrf=" + koVrfEncrypt(siteId), {
       headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": animeUrl, "X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*; q=0.01" })
     }, 10000);
     var epHtml = epResponse && epResponse.result || "", tags = epHtml.match(/<a\b[^>]*data-num=["'][^"']+["'][^>]*>/gi) || [], epTag = null;
@@ -223,7 +344,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
           embed = sr && sr.result && sr.result.url || "";
         }
         if (!embed) return [];
-        return await koResolveEmbed(embed, "Episode " + ep + " - " + server.name, server.type);
+        return await koResolveEmbed(embed, "Episode " + ep + " - " + server.name, server.type, baseUsed);
       } catch (error) {
         console.log("[Anikoto] server failed: " + String(error && error.message || error));
         return [];
@@ -244,14 +365,14 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
         for (var x = 0; x < keys.length; x++) {
           if (keys[x].toLowerCase() === "status") continue;
           var data = mapper[keys[x]] || {};
-          ["sub", "dub"].forEach(function (kind) { var u = data[kind] && data[kind].url; if (u && /^https:\/\//i.test(u)) out.push({ _embed: u, _label: "Episode " + ep + " - " + keys[x], _lang: kind }); });
+          ["sub", "dub"].forEach(function (kind) { var u = data[kind] && data[kind].url; if (u && /^https:\/\//i.test(u)) out.push({ _embed: u, _label: "Episode " + ep + " - " + koMapperDisplayName(keys[x]), _lang: kind }); });
         }
       } catch (_) {}
     }
     var final = [], seen = {};
     for (var k = 0; k < out.length; k++) {
       var item = out[k];
-      if (item && item._embed) { var more = await koResolveEmbed(item._embed, item._label, item._lang); for (var z = 0; z < more.length; z++) out.push(more[z]); continue; }
+      if (item && item._embed) { var more = await koResolveEmbed(item._embed, item._label, item._lang, baseUsed); for (var z = 0; z < more.length; z++) out.push(more[z]); continue; }
       if (!item || !item.url || seen[item.url]) continue;
       seen[item.url] = true; final.push(item);
     }

@@ -44,6 +44,14 @@ test("provider IDs are unique and all referenced files exist", () => {
   }
 });
 
+test("NetMirror remains disabled until a legitimate user-completed verification handoff exists", () => {
+  const provider = manifest.providers.find((item) => item.id === "net77");
+  assert.ok(provider, "net77 catalogue entry");
+  assert.equal(provider.enabled, false);
+  assert.match(provider.description, /user-completed NetMirror verification/i);
+  assert.match(provider.description, /synthetic reCAPTCHA response path is not used/i);
+});
+
 test("movie/TV provider catalogue entries remain intact", () => {
   const movieTv = manifest.providers.filter((provider) =>
     provider.supportedTypes.includes("movie") || provider.supportedTypes.includes("tv")
@@ -51,6 +59,7 @@ test("movie/TV provider catalogue entries remain intact", () => {
   assert.deepEqual(movieTv.map((provider) => provider.id).sort(), existingMovieTvIds.slice().sort());
   for (const provider of movieTv) {
     assert.ok(provider.filename.startsWith("providers/movie-tv/"));
+    if (provider.enabled) assert.doesNotMatch(provider.description, /disabled pending|must not be enabled/i, provider.id);
     assert.ok(provider.supportedTypes.every((type) => type === "movie" || type === "tv"));
   }
 });
