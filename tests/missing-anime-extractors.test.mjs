@@ -257,8 +257,11 @@ test("VidHide follows the Kotlin packed-player extraction and keeps caption trac
     throw new Error("Unexpected VidHide request " + value);
   });
 
-  const candidates = await extractors.vidhide("https://vidhide.example/e/fixture", options("anineko"));
-  assert.equal(candidates.length, 1);
+  const diagnostics = [];
+  const settings = options("anineko");
+  settings.log = (message) => diagnostics.push(message);
+  const candidates = await extractors.vidhide("https://vidhide.example/e/fixture", settings);
+  assert.equal(candidates.length, 1, diagnostics.join("\\n") + " calls=" + JSON.stringify(calls));
   assert.equal(candidates[0].url, "https://media.example/vidhide/1080/index.m3u8");
   assert.equal(candidates[0].quality, "1080p");
   assert.equal(candidates[0].type, "m3u8");
