@@ -320,7 +320,7 @@ test("Vidara upns.pro reverses the hex JSON response and preserves Kotlin fragme
       return response(encoded, { url: value });
     }
     if (value === "https://media.example/upns/master.m3u8") {
-      return response("#EXTM3U\\n#EXT-X-STREAM-INF:BANDWIDTH=2400000,RESOLUTION=1920x1080\\n1080/index.m3u8");
+      return response("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2400000,RESOLUTION=1920x1080\n1080/index.m3u8");
     }
     throw new Error("Unexpected UPNS request " + value);
   });
