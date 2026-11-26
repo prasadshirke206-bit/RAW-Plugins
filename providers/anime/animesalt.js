@@ -1322,7 +1322,7 @@
 
 
   function vidhideTracks(script, baseUrl) {
-    var match = String(script || "").match(/tracks\s*:\s*\[([\s\S]*?)\]/i);
+    var match = String(script || "").match(/tracks\s*[:=]\s*\[([\s\S]*?)\]/i);
     if (!match) return [];
     var blocks = match[1].match(/\{[^{}]*\}/g) || [];
     var tracks = [];
