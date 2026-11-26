@@ -35,44 +35,114 @@ function alCandidate(url, label, quality, type, lang, headers, subtitles) {
 }
 function alQuality(h) { var n = Number(h || 0); if (n >= 2160) return "2160p"; if (n >= 1440) return "1440p"; if (n >= 1080) return "1080p"; if (n >= 720) return "720p"; if (n >= 480) return "480p"; if (n >= 360) return "360p"; if (n >= 240) return "240p"; if (n >= 144) return "144p"; return "Auto"; }
 function alAbs(base, value) { try { return new URL(value, base).toString(); } catch (_) { return value; } }
-function alB64Bytes(value) { var raw = atob(String(value || "").replace(/-/g, "+").replace(/_/g, "/")); var bytes = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i); return bytes; }
-async function alDecryptMega(enc) {
-  if (!enc || typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined") return "";
-  try {
-    var keyBytes = new Uint8Array(32); keyBytes.set(new TextEncoder().encode(ANILIGHT_MEGA_KEY));
-    var key = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["decrypt"]);
-    var plain = await crypto.subtle.decrypt({ name: "AES-CBC", iv: new TextEncoder().encode(ANILIGHT_MEGA_IV) }, key, alB64Bytes(enc));
-    var data = JSON.parse(new TextDecoder().decode(plain)); return data && data.file || "";
-  } catch (_) { return ""; }
+var ANILIGHT_MEGA_BASE = "https://megaplay.buzz";
+var ANILIGHT_MEGA_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+function alB64Bytes(value) {
+  var normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/").replace(/\s/g, "");
+  normalized += "=".repeat((4 - normalized.length % 4) % 4);
+  var raw = atob(normalized), bytes = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
 }
-async function alHls(url, label, lang, headers, subtitles) {
-  var body = await (await alFetch(url, { headers: headers }, 10000)).text();
-  if (body.indexOf("#EXTM3U") < 0) return [];
-  if (body.indexOf("#EXT-X-MEDIA:TYPE=AUDIO") >= 0) { var master = alCandidate(url, label, "Auto", "m3u8", lang, headers, subtitles); return master ? [master] : []; }
+function alMegaKeyBytes(value) {
+  var bytes = new Uint8Array(32);
+  var encoded = new TextEncoder().encode(String(value || ""));
+  bytes.set(encoded.slice(0, 32));
+  return bytes;
+}
+async function alDecryptMegaOnce(enc, keyMaterial, ivMaterial) {
+  try {
+    if (typeof crypto === "undefined" || !crypto.subtle || typeof TextEncoder === "undefined" || typeof TextDecoder === "undefined") return "";
+    var key = await crypto.subtle.importKey("raw", alMegaKeyBytes(keyMaterial), { name: "AES-CBC" }, false, ["decrypt"]);
+    var plain = await crypto.subtle.decrypt(
+      { name: "AES-CBC", iv: new TextEncoder().encode(String(ivMaterial || "")) },
+      key,
+      alB64Bytes(enc)
+    );
+    var data = JSON.parse(new TextDecoder().decode(plain));
+    return data && typeof data.file === "string" ? data.file : "";
+  } catch (_) {
+    return "";
+  }
+}
+async function alRefreshMegaKeyMaterial() {
+  try {
+    var js = await (await alFetch(ANILIGHT_MEGA_BASE + "/lib/newclient.min.js", {
+      headers: {
+        "User-Agent": ANILIGHT_MEGA_UA,
+        "Referer": ANILIGHT_SITE + "/"
+      }
+    }, 10000)).text();
+    var keyMatch = js.match(/\[\s*["']trustAesKey["']\s*,\s*["']TRUST_AES_KEY["']\s*\]\s*,\s*(?:"([^"]*)"|'([^']*)')/);
+    var ivMatch = js.match(/\[\s*["']trustAesIv["']\s*,\s*["']TRUST_AES_IV["']\s*\]\s*,\s*(?:"([^"]*)"|'([^']*)')/);
+    if (keyMatch) ANILIGHT_MEGA_KEY = keyMatch[1] || keyMatch[2] || ANILIGHT_MEGA_KEY;
+    if (ivMatch) {
+      var nextIv = ivMatch[1] || ivMatch[2] || "";
+      if (new TextEncoder().encode(nextIv).length === 16) ANILIGHT_MEGA_IV = nextIv;
+    }
+  } catch (error) {
+    console.log("[AniLight] MegaPlay key refresh failed: " + String(error && error.message || error));
+  }
+}
+async function alDecryptMega(enc) {
+  if (!enc) return "";
+  var file = await alDecryptMegaOnce(enc, ANILIGHT_MEGA_KEY, ANILIGHT_MEGA_IV);
+  if (file) return file;
+  await alRefreshMegaKeyMaterial();
+  return await alDecryptMegaOnce(enc, ANILIGHT_MEGA_KEY, ANILIGHT_MEGA_IV);
+}
+async function alHls(url, audioBadge, lang, headers, subtitles) {
+  var body = "";
+  try { body = await (await alFetch(url, { headers: headers }, 10000)).text(); }
+  catch (error) { console.log("[AniLight] MegaPlay playlist inspection failed: " + String(error && error.message || error)); }
+  if (body.indexOf("#EXTM3U") < 0) {
+    var fallback = alCandidate(url, "Auto " + audioBadge, "Auto", "m3u8", lang, headers, subtitles);
+    return fallback ? [fallback] : [];
+  }
+  if (body.indexOf("#EXT-X-MEDIA:TYPE=AUDIO") >= 0) {
+    var master = alCandidate(url, "Auto " + audioBadge, "Auto", "m3u8", lang, headers, subtitles);
+    return master ? [master] : [];
+  }
   var lines = body.split(/\r?\n/), out = [];
   for (var i = 0; i < lines.length; i++) {
     if (lines[i].indexOf("#EXT-X-STREAM-INF:") !== 0) continue;
-    var h = (lines[i].match(/RESOLUTION=\d+x(\d+)/i) || [,""])[1], next = "";
+    var h = (lines[i].match(/RESOLUTION=\d+x(\d+)/i) || [, ""])[1], next = "";
     for (var j = i + 1; j < lines.length; j++) { var line = lines[j].trim(); if (line && line.charAt(0) !== "#") { next = line; break; } }
     if (!next) continue;
-    var c = alCandidate(alAbs(url, next), label, alQuality(h), "m3u8", lang, headers, subtitles); if (c) out.push(c);
+    var q = alQuality(h);
+    var c = alCandidate(alAbs(url, next), q + " " + audioBadge, q, "m3u8", lang, headers, subtitles);
+    if (c) out.push(c);
   }
-  if (!out.length) { var c0 = alCandidate(url, label, "Auto", "m3u8", lang, headers, subtitles); if (c0) out.push(c0); }
+  if (!out.length) { var c0 = alCandidate(url, "Auto " + audioBadge, "Auto", "m3u8", lang, headers, subtitles); if (c0) out.push(c0); }
   return out;
 }
 async function alMegaPlay(embedUrl, lang, label) {
-  var headers = Object.assign({}, ANILIGHT_HEADERS, { "Referer": embedUrl });
-  var html = await (await alFetch(embedUrl, { headers: headers }, 10000)).text();
-  var m = html.match(/data-id=["']([^"']+)["']/i) || html.match(/data-id=(\d+)/i);
-  if (!m) return [];
-  var mediaId = m[1], host = (embedUrl.match(/^https?:\/\/([^/]+)/i) || [,"megaplay.buzz"])[1];
-  var sources = await alJson("https://" + host + "/stream/getSources?id=" + encodeURIComponent(mediaId) + "&st=other",
-    { headers: Object.assign({}, headers, { "Accept": "application/json,*/*" }) }, 10000);
+  var pageHeaders = {
+    "User-Agent": ANILIGHT_MEGA_UA,
+    "Referer": ANILIGHT_SITE + "/"
+  };
+  var embedHeaders = {
+    "User-Agent": ANILIGHT_MEGA_UA,
+    "Referer": ANILIGHT_MEGA_BASE + "/"
+  };
+  var html = await (await alFetch(embedUrl, { headers: pageHeaders }, 10000)).text();
+  var match = html.match(/data-id=["']([^"']+)["']/i) || html.match(/data-id=([^\s>]+)/i);
+  if (!match) return [];
+  var mediaId = match[1];
+  var sources = await alJson(
+    ANILIGHT_MEGA_BASE + "/stream/getSources?id=" + encodeURIComponent(mediaId) + "&id=" + encodeURIComponent(mediaId),
+    { headers: embedHeaders },
+    10000
+  );
   var file = sources && sources.sources && sources.sources.file;
-  if (sources && sources.enc) file = await alDecryptMega(sources.enc) || file;
+  if (!file && sources && sources.enc) file = await alDecryptMega(sources.enc);
   if (!file || !/^https:\/\//i.test(file)) return [];
-  var tracks = (sources.tracks || []).map(function (t) { if (!t || !t.file || String(t.kind || "").toLowerCase() === "thumbnails" || !/^https:\/\//i.test(t.file)) return null; return { url: t.file, lang: t.label || "Unknown" }; }).filter(Boolean);
-  return await alHls(file, label + (lang === "dub" ? " [Dub]" : " [Sub]"), lang, headers, tracks);
+  var tracks = (sources.tracks || []).map(function (track) {
+    if (!track || !track.file || String(track.kind || "").toLowerCase() === "thumbnails" || !/^https:\/\//i.test(track.file)) return null;
+    return { url: track.file, lang: track.label || "English" };
+  }).filter(Boolean);
+  var audioBadge = lang === "dub" ? "[Dub]" : (tracks.length ? "[Soft Sub]" : "[Sub]");
+  return await alHls(file, audioBadge, lang, embedHeaders, tracks);
 }
 async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
   try {
