@@ -1,7 +1,7 @@
 {
   "name": "raw-plugins",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.3.7",
   "type": "module",
   "scripts": {
     "test": "npm run check:anime-extractors && node --test tests/*.test.mjs",
