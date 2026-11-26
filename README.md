@@ -62,16 +62,34 @@ The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScrip
 | AniKuro | Exact AniList alias search → episode API → normalized provider sources | Only normalized direct media URLs are emitted |
 | AnimeHeaven | Exact title search → episode gate key → direct MP4/HLS | Only media URLs directly visible after the public gate request are emitted |
 | Ani.pm | AniList API → playback bootstrap → Settlar session → HLS + subtitles | Uses public session endpoints; no native local proxy is emulated |
-| AnimeSaga | AniList GraphQL → encrypted episodes/stream JSON → direct HLS/MP4 | Android local proxy and hoster-specific extractors are omitted |
-| Anitummy | AniList episode → Fast MegaPlay + VidNest direct-media discovery + Kiwi/Net/Ally sub/dub stream APIs → direct HLS/MP4 + captions | Dood/VidHide hoster extraction and native HLS integration remain incomplete; Cloudflare/session-denied routes fail closed |
-| AnimeSalt | AniList title mapping, WordPress episode/server parsing, MegaPlay AES-CBC, AS-CDN/FirePlayer POST-to-HLS, and shared Abyss AES-CTR plus VidMoly extraction | Dood, StreamTape, Filemoon and UniversalExtractor routes are not fully ported; browser and native playlist-proxy capabilities remain RAW host work |
+| AnimeSaga | AniList GraphQL → encrypted episodes/stream JSON → direct HLS/MP4 plus shared Dood and VidHide hoster extraction | Android local proxy still requires a RAW-native bridge |
+| Anitummy | AniList episode → Fast MegaPlay + VidNest + Kiwi/Net/Ally sub/dub APIs, plus shared Dood, VidHide, StreamWish and Vidara extraction where embed URLs match | Native M3U8 playlist/segment integration remains a host gap; Cloudflare/session-denied routes fail closed |
+| AnimeSalt | AniList title mapping, WordPress episode/server parsing, MegaPlay AES-CBC, AS-CDN/FirePlayer POST-to-HLS, and shared Abyss, VidMoly, Dood and StreamTape extraction | Filemoon and UniversalExtractor routes remain unsupported; native playlist-proxy capabilities remain RAW host work |
 | FourAnimo | AniList title mapping → page token/AJAX episode list → M/R/ReCloud source endpoint | Only observed direct HLS playlists are returned |
-| AniMoTVSlash | Exact title lookup → episode/mirror parsing → directly visible HLS | Specialized StreamWish/VidHide/Vidara extractors are not emulated |
-| AniNeko | Exact title lookup → episode/server buttons → directly visible HLS/MP4 | Native loopback proxy and specialized hoster extractors are not emulated |
+| AniMoTVSlash | Exact title lookup → episode/mirror parsing → shared StreamWish, VidHide, Vidara and Abyss extraction plus direct media | Filemoon challenge path is intentionally unsupported; native HLS validation remains |
+| AniNeko | Exact title lookup → episode/server buttons → shared Dood and VidHide extraction plus direct HLS/MP4 | Native loopback proxy and playlist/segment rewriting remain RAW host work |
 | AnimeStream | Exact title mapping → paginated season/episode API → locale, alternate-audio and hard-sub HLS playlists | Streams requiring the native encrypted-key proxy are omitted |
 | Animostream | AniList title matching, Blogger animeData season/server parsing, direct HLS/MP4, and shared Abyss, Dood, StreamTape, VidMoly, EmbedSeek and StreamWish extraction | UniversalExtractor and native playlist-proxy branches remain RAW host work; Filemoon challenge/PoW flow is intentionally unsupported |
 
 The original Kotlin source files under `anime/providers/` remain unchanged. The JavaScript files are separate runtime ports, not a claim that every Android-only capability can be reproduced inside QuickJS.
+
+## Shared anime extractor coverage
+
+The reusable QuickJS layer lives in providers/anime/shared/extractors.js. It now includes StreamWish, EmbedSeek, GogoStream, OK.ru, Mp4Upload, Streamlare, Abyss, Dood, StreamTape, VidMoly, VidHide and Vidara. The generated standalone bundles and sync checks cover AllAnime, AniMoStream, AnimeSalt, AniMoTVSlash, AniNeko, AnimeSaga and Anitummy.
+
+| Provider | Extractors reused |
+|---|---|
+| AllAnime | GogoStream, Dood, OK.ru, Mp4Upload, Streamlare, StreamWish |
+| AniMoStream | StreamWish, EmbedSeek, StreamTape, Dood, VidMoly, Abyss |
+| AnimeSalt | VidMoly, Abyss, Dood, StreamTape |
+| AniMoTVSlash | StreamWish, VidHide, Vidara, Abyss |
+| AniNeko | VidHide, Dood |
+| AnimeSaga | VidHide, Dood |
+| Anitummy | VidHide, Dood, StreamWish, Vidara |
+
+The Kotlin modules in extractors/ and libraries/ remain native source references; QuickJS cannot import them as Kotlin. In particular, libraries/m3u8server and UniversalExtractor are host capabilities, not ordinary JS extractors: playlist/segment/key rewriting needs a RAW-native media proxy, while UniversalExtractor needs the Android WebView bridge. The Synchrony library is JavaScript and is bundled for the providers that use it; the P.A.C.K.E.R. JavaScript helper is a targeted compatibility port, not proof that every Kotlin unpacker consumer is migrated.
+
+New VidHide and Vidara JS ports have mocked request/response fixtures. These tests confirm extraction contracts, AniList candidate identity and HLS variant parsing, but not live endpoint availability or real Android/MPV playback. Retain Kotlin references until all provider parity, native bridge and device playback gates pass.
 
 ## Quality and subtitle truthfulness
 
