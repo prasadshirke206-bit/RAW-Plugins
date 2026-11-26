@@ -35,10 +35,12 @@
     };
   }
 
-  async function request(url, headers, timeoutMs) {
+  async function request(url, headers, timeoutMs, init) {
     var timer;
+    var requestOptions = Object.assign({}, init || {});
+    requestOptions.headers = Object.assign({}, (init && init.headers) || {}, headers || {});
     var response = await Promise.race([
-      fetch(url, { headers: headers || {} }),
+      fetch(url, requestOptions),
       new Promise(function (_, reject) {
         timer = setTimeout(function () { reject(new Error("extractor request timeout")); }, timeoutMs || 10000);
       })
