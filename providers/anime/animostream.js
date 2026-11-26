@@ -1112,7 +1112,7 @@
   function openingTagWithClass(html, tagName, className) {
     var tags = String(html || "").match(new RegExp("<" + tagName + "\\b[^>]*>", "gi")) || [];
     for (var i = 0; i < tags.length; i++) {
-      var classValue = htmlAttribute(tags[i], "class").split(/\\s+/);
+      var classValue = htmlAttribute(tags[i], "class").split(/\s+/);
       if (classValue.indexOf(className) >= 0) return tags[i];
     }
     return "";
@@ -1120,11 +1120,11 @@
 
   function gogoDigits(html, tagName, className, marker) {
     var tag = className === "body"
-      ? ((String(html || "").match(/<body\\b[^>]*>/i) || [""])[0])
+      ? ((String(html || "").match(/<body\b[^>]*>/i) || [""])[0])
       : openingTagWithClass(html, tagName, className);
     var cls = htmlAttribute(tag, "class");
     var value = cls.substring(cls.indexOf(marker) + marker.length);
-    return new Uint8Array(Array.from(value).filter(function (ch) { return /\\d/.test(ch); }).map(function (ch) { return Number(ch); }));
+    return new Uint8Array(Array.from(value).filter(function (ch) { return /\d/.test(ch); }).map(function (ch) { return Number(ch); }));
   }
 
   async function aesCbc(data, keyBytes, ivBytes, operation) {
@@ -1136,14 +1136,14 @@
 
   async function gogostream(serverUrl, options) {
     options = options || {};
-    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(serverUrl || ""))) return [];
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(serverUrl || ""))) return [];
     try {
       var page = await request(serverUrl, options.pageHeaders || {}, 12000);
       var html = await page.text();
       var iv = gogoDigits(html, "div", "wrapper", "container-");
       var secretKey = gogoDigits(html, "body", "body", "container-");
       var decryptKey = gogoDigits(html, "div", "videocontent", "videocontent-");
-      var scriptTag = (html.match(/<script\\b[^>]*data-value=[^>]*>/i) || [""])[0];
+      var scriptTag = (html.match(/<script\b[^>]*data-value=[^>]*>/i) || [""])[0];
       var encryptedParams = htmlAttribute(scriptTag, "data-value");
       if (!iv.length || !secretKey.length || !decryptKey.length || !encryptedParams) return [];
       var decodedParams = bytesToUtf8(await aesCbc(decodeBase64Bytes(encryptedParams), secretKey, iv, "decrypt"));
@@ -1164,12 +1164,11 @@
       var prefix = input.searchParams.has("token") ? "Gogostream - " : "Vidstreaming - ";
       var out = [];
       if (sources.length === 1 && String(sources[0].type || "").toLowerCase() === "hls") {
-        var headers = { Referer: serverUrl };
-        return await hlsCandidates(sources[0].file, options, prefix, headers, options.subtitles || []);
+        return await hlsCandidates(sources[0].file, options, prefix, { Referer: serverUrl }, options.subtitles || []);
       }
       for (var i = 0; i < sources.length; i++) {
         var item = sources[i] || {};
-        if (!item.file || !/^https:\\/\\//i.test(item.file)) continue;
+        if (!item.file || !/^https:\/\//i.test(item.file)) continue;
         var label = prefix + String(item.label || "Auto");
         var video = candidate(options, item.file, label, String(item.label || "Auto"), "mp4", { Referer: serverUrl }, options.subtitles || []);
         if (video) out.push(video);
@@ -1182,17 +1181,25 @@
   }
 
   function decodeOkruOptions(value) {
-    var raw = String(value || "").replace(/&quot;/gi, "\"").replace(/&#39;|&apos;/gi, "'")
-      .replace(/&amp;/gi, "&").replace(/\\\\u0026/gi, "&").replace(/\\\\\\//g, "/");
-    try { return JSON.parse(raw); } catch (_) {}
+    var raw = String(value || "")
+      .replace(/&quot;/gi, "\"")
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/&amp;/gi, "&")
+      .replace(/\\u0026/gi, "&")
+      .replace(/\\\//g, "/");
+    try {
+      return JSON.parse(raw);
+    } catch (_) {}
     var out = {};
     ["ondemandHls", "ondemandDash"].forEach(function (key) {
-      var re = new RegExp(key + "(\\\\\\\\*[\"'])\\\\s*:\\\\s*\\\\1(.*?)\\\\1", "i");
-      var match = raw.match(re);
-      if (match) out[key] = match[2].replace(/\\\\\\\\/g, "").replace(/\\\\u0026/gi, "&");
+      var quoted = new RegExp("[\"']?" + key + "[\"']?\\s*:\\s*[\"']([^\"']+)[\"']", "i");
+      var match = quoted.exec(raw);
+      if (match) out[key] = match[1].replace(/\\u0026/gi, "&").replace(/\\\//g, "/");
     });
-    var videos = raw.match(/\"videos\"\\s*:\\s*(\\[[\\s\\S]*?\\])/i);
-    if (videos) { try { out.videos = JSON.parse(videos[1]); } catch (_) {} }
+    var videos = raw.match(/"videos"\s*:\s*(\[[\s\S]*?\])/i);
+    if (videos) {
+      try { out.videos = JSON.parse(videos[1]); } catch (_) {}
+    }
     return out;
   }
 
@@ -1205,12 +1212,12 @@
 
   async function okru(url, options) {
     options = options || {};
-    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(url || ""))) return [];
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
     try {
       var headers = options.pageHeaders || {};
       var page = await request(url, headers, 12000);
       var html = await page.text();
-      var tag = (html.match(/<div\\b[^>]*data-options=[^>]*>/i) || [""])[0];
+      var tag = (html.match(/<div\b[^>]*data-options=[^>]*>/i) || [""])[0];
       var rawOptions = htmlAttribute(tag, "data-options");
       if (!rawOptions) return [];
       var data = decodeOkruOptions(rawOptions);
@@ -1225,7 +1232,7 @@
       var videos = Array.isArray(data.videos) ? data.videos.slice().reverse() : [];
       var out = [];
       videos.forEach(function (item) {
-        if (!item || !item.url || !/^https:\\/\\//i.test(item.url)) return;
+        if (!item || !item.url || !/^https?:\/\//i.test(item.url)) return;
         var q = okruQuality(item.name, options.fixQualities !== false);
         var label = (prefix ? prefix + " " : "") + "Okru:" + q;
         var video = candidate(options, item.url, label, q, "mp4", headers, options.subtitles || []);
@@ -1240,22 +1247,26 @@
 
   async function mp4upload(url, options) {
     options = options || {};
-    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(url || ""))) return [];
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
     try {
       var headers = Object.assign({}, options.pageHeaders || {}, { Referer: "https://mp4upload.com/" });
       var page = await request(url, headers, 12000);
       var html = await page.text();
-      var scripts = html.match(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi) || [];
-      var script = scripts.map(function (tag) { return (tag.match(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/i) || [,""])[1]; })
-        .find(function (body) { return /eval\\(function\\(p,a,c,k,e,d\\)/i.test(body) || /player\\.src|\\.src\\(/i.test(body); }) || "";
+      var scripts = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+      var script = scripts.map(function (tag) {
+        return (tag.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i) || [,""])[1];
+      }).find(function (body) {
+        return /eval\(function\(p,a,c,k,e,d\)/i.test(body) || /player\.src|\.src\(/i.test(body);
+      }) || "";
       if (!script) return [];
-      if (/eval\\(function\\(p,a,c,k,e,d\\)/i.test(script)) {
+      if (/eval\(function\(p,a,c,k,e,d\)/i.test(script)) {
         var unpacked = packerUnpack(script);
-        if (unpacked.length) script = unpacked.join("\\n");
+        if (unpacked.length) script = unpacked.join("\n");
       }
-      var videoUrl = (script.match(/\\.src\\s*\\(\\s*[\"']([^\"']+)[\"']\\s*\\)/i) || script.match(/\\bsrc\\s*:\\s*[\"']([^\"']+)[\"']/i) || [,""])[1];
-      if (!videoUrl || !/^https?:\\/\\//i.test(videoUrl)) return [];
-      var height = (script.match(/\\WHEIGHT=(\\d+)/i) || [,""])[1];
+      var videoUrl = (script.match(/\.src\s*\(\s*["']([^"']+)["']\s*\)/i) ||
+        script.match(/\bsrc\s*:\s*["']([^"']+)["']/i) || [,""])[1];
+      if (!videoUrl || !/^https?:\/\//i.test(videoUrl)) return [];
+      var height = (script.match(/\WHEIGHT=(\d+)/i) || [,""])[1];
       var qualityLabel = height ? height + "p" : "Unknown resolution";
       var title = (options.labelPrefix ? options.labelPrefix + " " : "") + "Mp4Upload - " + qualityLabel;
       var video = candidate(options, videoUrl, title, height ? quality(height) : "Auto", "mp4", headers, options.subtitles || []);
