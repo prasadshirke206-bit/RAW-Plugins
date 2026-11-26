@@ -69,10 +69,14 @@ function baseRequests(url, options, calls) {
 test("Anikage uses the live Kotlin PUBLIC_PROXY_URL for token streams and caption tracks", async () => {
   const calls = [];
   const { getStreams } = loadProvider(async (url, options) => {
+    const value = String(url);
+    if (value === "https://anikage.cc/api/media/anime/parity-fixture/episodes/1/servers") {
+      calls.push({ url: value, options: options || {} });
+      return response({ servers: [{ id: "koto", subTypes: [] }] });
+    }
     const fixed = baseRequests(url, options, calls);
     if (fixed) return fixed;
 
-    const value = String(url);
     if (value.includes("/sources?provider=koto&lang=sub&server=koto")) {
       calls.push({ url: value, options: options || {} });
       return response({
@@ -193,11 +197,6 @@ test("Anikage treats an empty server subTypes list as both sub and dub, like Kot
     if (value === "https://edge.example/proxy/stream/dub-token") {
       calls.push({ url: value, options: options || {} });
       return response("video bytes", 200, "video/mp4");
-    }
-    // Override the shared server fixture with the empty-list edge case.
-    if (value === "https://anikage.cc/api/media/anime/parity-fixture/episodes/1/servers") {
-      calls.push({ url: value, options: options || {} });
-      return response({ servers: [{ id: "koto", subTypes: [] }] });
     }
     throw new Error("Unexpected Anikage request: " + value);
   });
