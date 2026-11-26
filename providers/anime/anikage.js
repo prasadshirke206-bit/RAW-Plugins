@@ -47,27 +47,27 @@ async function akGetProxyUrl() {
   var proxy = ANIKAGE_PROXY;
   try {
     var html = await (await akFetch(ANIKAGE_SITE, { headers: ANIKAGE_HEADERS }, 6500)).text();
-    var match = html.match(/["\']?PUBLIC_PROXY_URL["\']?\\s*:\\s*["\']([^"\']+)["\']/i);
+    var match = html.match(/["']?PUBLIC_PROXY_URL["']?\s*:\s*["']([^"']+)["']/i);
     if (match && match[1]) {
       var candidate = new URL(match[1]);
       if (candidate.protocol === "https:" && candidate.host && !candidate.username && !candidate.password) {
-        proxy = candidate.toString().replace(/\\/+$/, "");
+        proxy = candidate.toString().replace(/\/+$/, "");
       }
     }
   } catch (error) {
     console.log("[Anikage] dynamic proxy discovery failed; using Kotlin-compatible fallback: " + String(error && error.message || error));
   }
-  ANIKAGE_PROXY_CACHE = proxy.replace(/\\/+$/, "");
+  ANIKAGE_PROXY_CACHE = proxy.replace(/\/+$/, "");
   return ANIKAGE_PROXY_CACHE;
 }
 function akResolveProxy(value, isM3u8, proxyBase) {
   if (!value) return "";
   var v = String(value).trim();
-  if (/^https?:\\/\\//i.test(v)) return v;
-  var base = String(proxyBase || ANIKAGE_PROXY).replace(/\\/+$/, "");
-  if (/^\\/(stream|m3u8|hls)\\//i.test(v)) return base + v;
-  if (/^(stream|m3u8|hls)\\//i.test(v)) return base + "/" + v;
-  return base + "/" + (isM3u8 ? "m3u8/" : "stream/") + v.replace(/^\\/+/, "");
+  if (/^https?:\/\//i.test(v)) return v;
+  var base = String(proxyBase || ANIKAGE_PROXY).replace(/\/+$/, "");
+  if (/^\/(stream|m3u8|hls)\//i.test(v)) return base + v;
+  if (/^(stream|m3u8|hls)\//i.test(v)) return base + "/" + v;
+  return base + "/" + (isM3u8 ? "m3u8/" : "stream/") + v.replace(/^\/+/, "");
 }
 async function akHls(url, label, lang, subtitles, headers) {
   var body = await (await akFetch(url, { headers: headers }, 10000)).text();
