@@ -1,7 +1,7 @@
 /*
  * Anikoto — RAW QuickJS anime provider ported from the original Kotlin source
- * and AnikotoTheme multisource contract. It does not forge short-lived signed
- * CDN tokens or emulate a browser verification challenge.
+ * and AnikotoTheme multisource contract, including episode VRF and MegaPlay
+ * AES-CBC/HMAC stream signing. Browser-only session challenges remain native-host work.
  */
 var ANIKOTO_ID = "anikoto";
 var ANIKOTO_MIRRORS = ["https://anikototv.bz", "https://anikototv.to", "https://anikoto.cz", "https://anikoto.me", "https://anikoto.net", "https://anikototv.se", "https://anikototv.com"];
@@ -85,6 +85,13 @@ function koVrfEncrypt(input) {
 }
 function koExactTitle(text, meta) { var n = koNorm(text); return (meta.titles || []).some(function (x) { return n && n === koNorm(x); }); }
 function koAbs(base, value) { try { return new URL(value, base).toString(); } catch (_) { return value; } }
+function koMapperDisplayName(key) {
+  var normalized = String(key || "").toLowerCase();
+  if (normalized === "gogoanime") return "Vidstream";
+  if (normalized === "anivibe") return "Vibe-Stream";
+  if (normalized === "animepahe") return "Kiwi-Stream";
+  return String(key || "");
+}
 function koCandidate(url, title, quality, type, lang, headers, subtitles) {
   if (!url || !/^https:\/\//i.test(url)) return null;
   return { name: "Anikoto | " + title, title: title, url: url, quality: quality || "Auto", type: type || "m3u8", provider: ANIKOTO_ID, language: lang || undefined, headers: headers || ANIKOTO_HEADERS, subtitles: subtitles || [] };
@@ -358,7 +365,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
         for (var x = 0; x < keys.length; x++) {
           if (keys[x].toLowerCase() === "status") continue;
           var data = mapper[keys[x]] || {};
-          ["sub", "dub"].forEach(function (kind) { var u = data[kind] && data[kind].url; if (u && /^https:\/\//i.test(u)) out.push({ _embed: u, _label: "Episode " + ep + " - " + keys[x], _lang: kind }); });
+          ["sub", "dub"].forEach(function (kind) { var u = data[kind] && data[kind].url; if (u && /^https:\/\//i.test(u)) out.push({ _embed: u, _label: "Episode " + ep + " - " + koMapperDisplayName(keys[x]), _lang: kind }); });
         }
       } catch (_) {}
     }
