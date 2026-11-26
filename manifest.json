@@ -1,7 +1,7 @@
 {
   "name": "RAW-Plugins",
   "id": "raw-plugins",
-  "version": "1.3.6",
+  "version": "1.3.7",
   "manifestVersion": 1,
   "description": "Official RAW streaming plugins for movies, TV and anime.",
   "app": {
@@ -318,8 +318,8 @@
     {
       "id": "allanime",
       "name": "AllAnime",
-      "description": "AniList-mapped AllAnime GraphQL provider. Includes encrypted episode-response handling (QuickJS WebCrypto AES-GCM required), internal clock endpoint and direct HLS/MP4 extraction. External embed pages are only returned when a direct media URL is visible.",
-      "version": "1.0.3",
+      "description": "AniList-mapped AllAnime GraphQL provider with AES-GCM episode decoding, Kotlin XOR source decoding, internal MP4/HLS/iframe/DASH parsing, and GogoStream, Dood, OK.ru, Mp4Upload, Streamlare and StreamWish extractors. Filemoon challenge flow remains intentionally unsupported.",
+      "version": "1.0.4",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -361,8 +361,8 @@
     {
       "id": "anikoto",
       "name": "Anikoto",
-      "description": "AniList-mapped Anikoto multisource provider with episode/server AJAX requests, public mapper fallback, direct HLS and MegaPlay source parsing. Signed CDN token creation and browser challenges are not emulated.",
-      "version": "1.0.2",
+      "description": "AniList-mapped Anikoto multisource provider with Kotlin VRF episode requests, mirror search, server/mapper fallback, MegaPlay AES-CBC source parsing, 90-second HMAC-SHA256 CDN tokens, ASS-first subtitles and intro/outro metadata.",
+      "version": "1.0.3",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -574,8 +574,8 @@
     {
       "id": "animesalt",
       "name": "AnimeSalt",
-      "description": "AniList title-mapped AnimeSalt Wordpress episode/server extraction with public MegaPlay AES-CBC, shared Abyss AES-CTR HLS/MP4 extraction, FirePlayer and observed subtitles.",
-      "version": "1.0.0",
+      "description": "AniList title-mapped AnimeSalt Wordpress episode/server extraction with public MegaPlay AES-CBC, shared Abyss AES-CTR HLS/MP4/Sora extraction, FirePlayer and observed subtitles. Browser-only UniversalExtractor routes remain native-host work.",
+      "version": "1.0.1",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -682,8 +682,8 @@
     {
       "id": "animostream",
       "name": "AniMoStream",
-      "description": "AniList title-mapped Animostream Blogger post/season data parsing with shared Abyss AES-CTR, Dood, StreamTape and VidMoly extraction plus direct HLS/MP4 sources.",
-      "version": "1.0.0",
+      "description": "AniList title-mapped Animostream Blogger post/season data parsing with shared Abyss, Dood, StreamTape, VidMoly, EmbedSeek and StreamWish extraction plus direct HLS/MP4 sources. UniversalExtractor routes remain native-host work.",
+      "version": "1.0.1",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
