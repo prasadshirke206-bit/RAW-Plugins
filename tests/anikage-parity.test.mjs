@@ -179,10 +179,13 @@ test("Anikage fails closed for UniversalExtractor-only embeds instead of returni
 test("Anikage treats an empty server subTypes list as both sub and dub, like Kotlin", async () => {
   const calls = [];
   const { getStreams } = loadProvider(async (url, options) => {
+    const value = String(url);
+    if (value === "https://anikage.cc/api/media/anime/parity-fixture/episodes/1/servers") {
+      calls.push({ url: value, options: options || {} });
+      return response({ servers: [{ id: "koto", subTypes: [] }] });
+    }
     const fixed = baseRequests(url, options, calls);
     if (fixed) return fixed;
-
-    const value = String(url);
     if (value.includes("/sources?provider=koto&lang=sub&server=koto")) {
       calls.push({ url: value, options: options || {} });
       return response({ sources: [] });
