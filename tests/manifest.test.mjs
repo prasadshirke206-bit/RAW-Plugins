@@ -59,6 +59,7 @@ test("movie/TV provider catalogue entries remain intact", () => {
   assert.deepEqual(movieTv.map((provider) => provider.id).sort(), existingMovieTvIds.slice().sort());
   for (const provider of movieTv) {
     assert.ok(provider.filename.startsWith("providers/movie-tv/"));
+    if (provider.enabled) assert.doesNotMatch(provider.description, /disabled pending|must not be enabled/i, provider.id);
     assert.ok(provider.supportedTypes.every((type) => type === "movie" || type === "tv"));
   }
 });
