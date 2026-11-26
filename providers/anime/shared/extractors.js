@@ -1262,36 +1262,39 @@
 
   async function streamlare(url, options) {
     options = options || {};
-    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(url || ""))) return [];
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
     try {
       var id = new URL(url).pathname.split("/").filter(Boolean).pop();
       if (!id) return [];
-      var api = await request("https://slwatch.co/api/video/stream/get", {}, 10000, {
+      var response = await request("https://slwatch.co/api/video/stream/get", {}, 10000, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: id })
       });
-      var payload = await api.json();
-      var type = String(payload && payload.type || "");
+      var body = await response.text();
+      var type = (body.match(/"type"\s*:\s*"([^"]+)"/i) || [, ""])[1];
       var prefix = String(options.labelPrefix || "");
       if (type === "hls") {
-        var masterUrl = String(payload.file || "").replace(/\\\\\\//g, "/");
-        if (!/^https:\\/\\//i.test(masterUrl)) return [];
-        return await hlsCandidates(masterUrl, options, (prefix ? prefix + " " : "") + "Streamlare:", {}, options.subtitles || []);
+        var master = (body.match(/"file"\s*:\s*"([^"]+)"/i) || [, ""])[1] || "";
+        master = master.replace(/\\\//g, "/").replace(/&amp;/g, "&");
+        if (!/^https:\/\//i.test(master)) return [];
+        return await hlsCandidates(master, options, (prefix ? prefix + " " : "") + "Streamlare:", {}, options.subtitles || []);
       }
-      var sources = Array.isArray(payload && payload.sources) ? payload.sources : [];
-      if (!sources.length && Array.isArray(payload && payload.data)) sources = payload.data;
-      var out = [];
-      for (var i = 0; i < sources.length; i++) {
-        var item = sources[i] || {};
-        var apiUrl = String(item.file || item.url || "");
-        var label = String(item.label || item.quality || "Auto");
-        if (!/^https?:\\/\\//i.test(apiUrl)) continue;
-        var posted = await request(apiUrl, {}, 10000, { method: "POST" });
-        var finalUrl = posted.url || apiUrl;
-        if (!/^https:\\/\\//i.test(finalUrl)) continue;
-        var title = (prefix ? prefix + " " : "") + "Streamlare:" + label;
-        var video = candidate(options, finalUrl, title, label, "mp4", {}, options.subtitles || []);
+
+      // The Kotlin extractor iterates each "label" block, POSTs its "file"
+      // API URL, then uses the final redirect URL as the actual media source.
+      var blocks = body.split(/"label"\s*:\s*"/i).slice(1), out = [];
+      for (var i = 0; i < blocks.length; i++) {
+        var block = blocks[i];
+        var label = block.split('"')[0].replace(/\\"/g, '"');
+        var apiUrl = (block.match(/"file"\s*:\s*"([^"]+)"/i) || [, ""])[1] || "";
+        apiUrl = apiUrl.replace(/\\\//g, "/").replace(/\\\\/g, "");
+        if (!/^https?:\/\//i.test(apiUrl)) continue;
+        var redirected = await request(apiUrl, {}, 10000, { method: "POST" });
+        var mediaUrl = redirected.url || apiUrl;
+        if (!/^https:\/\//i.test(mediaUrl)) continue;
+        var title = (prefix ? prefix + " " : "") + "Streamlare:" + (label || "Auto");
+        var video = candidate(options, mediaUrl, title, label || "Auto", "mp4", {}, options.subtitles || []);
         if (video) out.push(video);
       }
       return out;
