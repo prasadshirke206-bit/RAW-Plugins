@@ -39,6 +39,10 @@ function akCandidate(url, name, quality, type, lang, subtitles, headers) {
   if (!url || !/^https:\/\//i.test(url)) return null;
   return { name: "Anikage | " + name, title: name, url: url, quality: quality || "Auto", type: type || "m3u8", provider: ANIKAGE_ID, language: lang || undefined, headers: headers || ANIKAGE_HEADERS, subtitles: subtitles || [] };
 }
+function akServerSubTypes(server) {
+  var values = server && Array.isArray(server.subTypes) ? server.subTypes : [];
+  return values.length ? values.map(function (value) { return String(value).toLowerCase(); }) : ["sub", "dub"];
+}
 function akQuality(h) { var n = Number(h || 0); if (n >= 2160) return "2160p"; if (n >= 1440) return "1440p"; if (n >= 1080) return "1080p"; if (n >= 720) return "720p"; if (n >= 480) return "480p"; if (n >= 360) return "360p"; if (n >= 240) return "240p"; if (n >= 144) return "144p"; return "Auto"; }
 function akAbs(base, value) { try { return new URL(value, base).toString(); } catch (_) { return value; } }
 var ANIKAGE_PROXY_CACHE = null;
@@ -195,7 +199,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var preferredAudio = String(context.preferredAudio || "sub").toLowerCase();
     var audioOrder = preferredAudio === "dub" ? ["dub", "sub"] : ["sub", "dub"];
     var availableTypes = {};
-    servers.forEach(function (s) { (s.subTypes || ["sub", "dub"]).forEach(function (x) { availableTypes[String(x).toLowerCase()] = true; }); });
+    servers.forEach(function (s) { akServerSubTypes(s).forEach(function (x) { availableTypes[x] = true; }); });
     var types = audioOrder.filter(function (x) { return availableTypes[x]; });
     // Resolve each server/language source independently. This keeps slow servers
     // from serially blocking better mirrors and makes the plugin's work bounded.
@@ -204,7 +208,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     for (var si = 0; si < servers.length; si++) {
       var server = servers[si];
       if (!server || !server.id) continue;
-      var typesForServer = (server.subTypes || types).map(function (x) { return String(x).toLowerCase(); });
+      var typesForServer = akServerSubTypes(server);
       for (var li = 0; li < types.length; li++) {
         var lang = types[li];
         if (typesForServer.indexOf(lang) < 0) continue;
