@@ -729,7 +729,374 @@
     }
   }
 
+
+  function packerUnbase(value, radix) {
+    var token = String(value);
+    if (radix >= 2 && radix <= 36) {
+      var lower = token.toLowerCase();
+      var digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+      var result = 0;
+      if (!lower) return 0;
+      for (var i = 0; i < lower.length; i++) {
+        var digit = digits.indexOf(lower.charAt(i));
+        if (digit < 0 || digit >= radix) return 0;
+        result = result * radix + digit;
+        if (!Number.isSafeInteger(result)) return 0;
+      }
+      return result;
+    }
+
+    var selector = radix > 62 ? 95 : radix > 54 ? 62 : radix > 52 ? 54 : 52;
+    var alphabet95 = " !\"#$%&\\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\\\]^_" +
+      String.fromCharCode(96) + "abcdefghijklmnopqrstuvwxyz{|}~";
+    var alphabets = {
+      52: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP",
+      54: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR",
+      62: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      95: alphabet95
+    };
+    var alphabet = alphabets[selector] || "";
+    var total = 0;
+    var reversed = token.split("").reverse();
+    for (var j = 0; j < reversed.length; j++) {
+      var index = alphabet.indexOf(reversed[j]);
+      if (index < 0) index = 0;
+      total += Math.pow(radix, j) * index;
+      if (!Number.isSafeInteger(total)) return 0;
+    }
+    return Math.trunc(total);
+  }
+
+  function packerUnpack(script) {
+    var source = String(script || "");
+    var packedRegex = /eval\(function\(p,a,c,k,e,[rd]?/i;
+    if (!packedRegex.test(source)) return [];
+    var extractRegex = /}\s*\('(.*)',\s*(\d+),\s*(\d+),\s*'(.*?)'\.split\('\|'\)/gims;
+    var matches = [];
+    var match;
+    while ((match = extractRegex.exec(source)) !== null) {
+      var payload = match[1];
+      var radix = Number(match[2]) || 10;
+      var count = Number(match[3]);
+      var symbols = match[4].split("|");
+      if (!Number.isFinite(count) || symbols.length !== count) continue;
+      var decoded = payload.replace(/\b[a-zA-Z0-9_]+\b/g, function (word) {
+        var index = filemoonUnbase(word, radix);
+        var replacement = index >= 0 && index < symbols.length ? symbols[index] : "";
+        return replacement || word;
+      });
+      if (decoded.trim()) matches.push(decoded);
+    }
+    return matches;
+  }
+
+  function embedSeekHexBytes(value) {
+    var hex = String(value || "").trim();
+    if (!hex || hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) return null;
+    var bytes = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+  }
+
+  async function embedseek(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var sourceUrl = String(url);
+      var id;
+      if (sourceUrl.indexOf("#") >= 0) {
+        id = sourceUrl.substring(sourceUrl.indexOf("#") + 1).split("&")[0];
+      } else if (sourceUrl.indexOf("id=") >= 0) {
+        id = sourceUrl.substring(sourceUrl.indexOf("id=") + 3).split("&")[0];
+      } else {
+        id = sourceUrl.substring(sourceUrl.lastIndexOf("/") + 1).split("?")[0].split("#")[0];
+      }
+      if (!id) return [];
+
+      var apiUrl = "https://animostream.embedseek.online/api/v1/video?id=" + id +
+        "&w=1920&h=1080&r=www.animostream.xyz";
+      var requestHeaders = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": String(options.referer || "https://www.animostream.xyz/")
+      };
+      var response = await request(apiUrl, requestHeaders, 12000);
+      var hexData = String(await response.text() || "").trim();
+      var encrypted = embedSeekHexBytes(hexData);
+      if (!encrypted) return [];
+      if (!root.crypto || !root.crypto.subtle) return [];
+
+      var keyBytes = utf8Bytes("kiemtienmua911ca");
+      var ivBytes = utf8Bytes("1234567890oiuytr");
+      var key = await root.crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["decrypt"]);
+      var plaintext = await root.crypto.subtle.decrypt({ name: "AES-CBC", iv: ivBytes }, key, encrypted);
+      var data;
+      try {
+        data = JSON.parse(bytesToUtf8(new Uint8Array(plaintext)));
+      } catch (_) {
+        return [];
+      }
+      if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+
+      var subtitles = [];
+      var subtitleObject = data.subtitle;
+      if (subtitleObject && typeof subtitleObject === "object" && !Array.isArray(subtitleObject)) {
+        var languageKeys = Object.keys(subtitleObject);
+        for (var i = 0; i < languageKeys.length; i++) {
+          var languageKey = languageKeys[i];
+          var subPath = String(subtitleObject[languageKey] || "");
+          if (!subPath.trim()) continue;
+          var fullSubUrl = /^https?:\/\//i.test(subPath)
+            ? subPath
+            : "https://animostream.embedseek.online" + subPath.split("#")[0];
+          var lang = languageKey.toLowerCase() === "en"
+            ? "English"
+            : languageKey.toLowerCase() === "hi"
+              ? "Hindi"
+              : languageKey.toUpperCase();
+          if (/^https?:\/\//i.test(fullSubUrl)) subtitles.push({ url: fullSubUrl, lang: lang });
+        }
+      }
+
+      var mediaUrl = String(data.source || "").trim();
+      if (!mediaUrl) mediaUrl = String(data.hlsVideoTiktok || "").trim();
+      if (!mediaUrl) mediaUrl = String(data.cf || "").trim();
+      if (!mediaUrl) return [];
+
+      var streamHeaders = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://animostream.embedseek.online/"
+      };
+
+      if (/\.m3u8(?:$|[?#])/i.test(mediaUrl)) {
+        var videos;
+        try {
+          videos = await hlsCandidates(
+            mediaUrl, options, "EmbedSeek -", streamHeaders, subtitles
+          );
+        } catch (_) {
+          videos = [];
+        }
+        if (videos && videos.length) return videos;
+        var fallback = candidate(
+          options, mediaUrl, "EmbedSeek - Auto", "Auto", "m3u8", streamHeaders, subtitles
+        );
+        return fallback ? [fallback] : [];
+      }
+
+      var direct = candidate(options, mediaUrl, "EmbedSeek - Video", "Auto", "mp4", streamHeaders, subtitles);
+      return direct ? [direct] : [];
+    } catch (error) {
+      if (options.log) options.log("[EmbedSeek] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+
+  function synchronyDeobfuscate(script) {
+    var api = root && root.RAW_SYNCHRONY;
+    if (!api || typeof api.Deobfuscator !== "function") return null;
+    var output = null;
+    var consoleRef = root.console;
+    var saved = {};
+    try {
+      if (consoleRef) {
+        ["log", "warn", "error", "trace"].forEach(function (key) {
+          saved[key] = consoleRef[key];
+          consoleRef[key] = function () {};
+        });
+      }
+      output = new api.Deobfuscator().deobfuscateSource(String(script || ""));
+      return typeof output === "string" && output.trim() ? output : null;
+    } catch (_) {
+      return null;
+    } finally {
+      if (consoleRef) {
+        ["log", "warn", "error", "trace"].forEach(function (key) {
+          try {
+            if (saved[key] === undefined) delete consoleRef[key];
+            else consoleRef[key] = saved[key];
+          } catch (_) {}
+        });
+      }
+    }
+  }
+
+  function streamWishServerList(script, name) {
+    var expression = new RegExp(name + "\\s*=\\s*\\[([\\s\\S]*?)]", "i");
+    var match = expression.exec(String(script || ""));
+    if (!match) return [];
+    return match[1].split(",").map(function (value) {
+      return value.trim().replace(/^["']|["']$/g, "");
+    }).filter(Boolean);
+  }
+
+  function streamWishEmbedUrl(url) {
+    var source = String(url || "");
+    var marker = source.indexOf("/f/");
+    return marker >= 0
+      ? "https://streamwish.com/" + source.substring(marker + 3)
+      : source;
+  }
+
+  function streamWishEmbedId(url) {
+    var match = /.*\/[efd]\/([a-zA-Z0-9]+)/.exec(String(url || ""));
+    return match ? match[1] : String(url || "");
+  }
+
+  function streamWishPick(values) {
+    if (!values || !values.length) return "";
+    return String(values[Math.floor(Math.random() * values.length)] || "");
+  }
+
+  function streamWishSubtitles(script, baseUrl) {
+    try {
+      var source = String(script || "");
+      var tracksAt = source.indexOf("tracks");
+      if (tracksAt < 0) return [];
+      var openAt = source.indexOf("[", tracksAt);
+      if (openAt < 0) return [];
+      var closeAt = source.indexOf("]", openAt + 1);
+      if (closeAt < 0) return [];
+      var text = source.substring(openAt + 1, closeAt);
+      var fixed = text.replace(/\b(file|kind|label)\b/g, function (word, _capture, offset, whole) {
+        var before = whole.charAt(offset - 1);
+        var after = whole.charAt(offset + word.length);
+        return before === "\"" || after === "\"" ? word : "\"" + word + "\"";
+      });
+      var list = JSON.parse("[" + fixed + "]");
+      if (!Array.isArray(list)) return [];
+      var subtitles = [];
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (!item || typeof item !== "object" || String(item.kind || "").toLowerCase() !== "captions") continue;
+        var file = String(item.file || "");
+        if (!file) continue;
+        var subtitleUrl = absolute(file, baseUrl);
+        if (subtitleUrl && /^https:\/\//i.test(subtitleUrl)) {
+          subtitles.push({ url: subtitleUrl, lang: String(item.label || "") });
+        }
+      }
+      return subtitles;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function streamwish(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    var originalUrl = String(url);
+    var embedUrl = streamWishEmbedUrl(originalUrl);
+    var embed;
+    var input;
+    try {
+      embed = new URL(embedUrl);
+      input = new URL(originalUrl);
+    } catch (_) {
+      return [];
+    }
+    var id = streamWishEmbedId(originalUrl);
+    var absoluteId = /^https?:\/\//i.test(id);
+    var domains = absoluteId ? [""] : ["streamwish.com", "niramirus.com", "medixiru.com"];
+    var requestHeaders = Object.assign(
+      {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": String(options.referer || options.pageHeaders && options.pageHeaders.Referer || embed.origin + "/")
+      },
+      options.pageHeaders || {}
+    );
+
+    for (var domainIndex = 0; domainIndex < domains.length; domainIndex++) {
+      var fullUrl = absoluteId
+        ? id
+        : "https://" + domains[domainIndex] + "/" + id.replace(/^\/+/g, "");
+      try {
+        var pageResponse = await request(fullUrl, requestHeaders, 12000);
+        var html = await pageResponse.text();
+        var pageUrl = pageResponse.url || fullUrl;
+        var scriptTags = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+        var mainTag = scriptTags.find(function (tag) {
+          return /src\s*=\s*["'][^"']*\/main\.js(?:[?#][^"']*)?["']/i.test(tag);
+        });
+
+        if (mainTag) {
+          var scriptSrc = (mainTag.match(/src\s*=\s*(["'])(.*?)\1/i) || [,"",""])[2];
+          var mainScriptUrl = absolute(scriptSrc, pageUrl);
+          if (!mainScriptUrl || !/^https:\/\//i.test(mainScriptUrl)) continue;
+          var mainResponse = await request(mainScriptUrl, requestHeaders, 12000);
+          var mainScript = await mainResponse.text();
+          var cleanScript = synchronyDeobfuscate(mainScript);
+          if (!cleanScript) continue;
+
+          var dmcaServers = streamWishServerList(cleanScript, "dmca");
+          var mainServers = streamWishServerList(cleanScript, "main");
+          var rulesServers = streamWishServerList(cleanScript, "rules");
+          var selectedServers = rulesServers.indexOf(embed.hostname) >= 0 ? mainServers : dmcaServers;
+          var destination = streamWishPick(selectedServers);
+          if (!destination || /[\/@?#]/.test(destination)) continue;
+
+          var destinationUrl;
+          try {
+            destinationUrl = new URL("https://" + destination);
+            if (destinationUrl.username || destinationUrl.password || destinationUrl.pathname !== "/" ||
+                destinationUrl.search || destinationUrl.hash) continue;
+          } catch (_) {
+            continue;
+          }
+
+          var redirectedUrl = new URL(embedUrl);
+          redirectedUrl.hostname = destinationUrl.hostname;
+          redirectedUrl.port = destinationUrl.port;
+          var redirectedPage = streamWishEmbedUrl(redirectedUrl.toString());
+          var redirectedResponse = await request(redirectedPage, requestHeaders, 12000);
+          html = await redirectedResponse.text();
+          pageUrl = redirectedResponse.url || redirectedPage;
+        }
+
+        var playerScript = (html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [])
+          .map(function (tag) {
+            return (tag.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i) || [,""])[1];
+          })
+          .find(function (source) { return /m3u8/i.test(source); });
+        if (!playerScript) continue;
+
+        var unpacked = playerScript;
+        if (playerScript.indexOf("eval(function(p,a,c") >= 0) {
+          var unpackedParts = filemoonUnpack(playerScript);
+          if (!unpackedParts.length) continue;
+          unpacked = unpackedParts.join(" ");
+        }
+
+        var masterMatch = /https[^"]*m3u8[^"]*/i.exec(unpacked);
+        if (!masterMatch || !masterMatch[0]) continue;
+        var masterUrl = absolute(masterMatch[0], pageUrl);
+        if (!masterUrl || !/^https:\/\//i.test(masterUrl)) continue;
+
+        var subtitles = streamWishSubtitles(unpacked, masterUrl);
+        var masterOrigin = new URL(masterUrl).origin;
+        var streamHeaders = {
+          "User-Agent": requestHeaders["User-Agent"],
+          "Referer": masterOrigin + "/"
+        };
+        var videos = await hlsCandidates(
+          masterUrl, options, "StreamWish -", streamHeaders, subtitles
+        );
+        if (videos.length) return videos;
+      } catch (error) {
+        if (absoluteId) {
+          if (options.log) options.log("[StreamWish] " + String(error && error.message || error));
+          return [];
+        }
+      }
+    }
+    return [];
+  }
+
   root.RAWAnimeExtractors = {
+    streamwish: streamwish,
+    embedseek: embedseek,
     abyss: abyss,
     dood: dood,
     streamtape: streamtape,
