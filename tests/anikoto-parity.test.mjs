@@ -83,7 +83,7 @@ test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS 
     }
     if (value.startsWith("https://anikototv.bz/ajax/episode/list/site-id-123?")) {
       return response({
-        result: '<a data-num="1" data-ids="srv-1" data-mal="12345" data-slug="test-anime" data-timestamp="777"></a>'
+        result: '<a data-num="1" data-ids="srv-1"></a>'
       }, { url: value });
     }
     if (value === "https://anikototv.bz/ajax/server/list?servers=srv-1") {
