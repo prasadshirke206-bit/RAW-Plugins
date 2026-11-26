@@ -76,7 +76,7 @@ test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS 
   const masterUrl = "https://cdn.example/" + firstPathKey + "/" + secondPathKey + "/master.m3u8";
   const encrypted = await encryptMegaFile(masterUrl);
   const calls = [];
-  const { getStreams, calls, logs } = loadProvider(async (url, init) => {
+  const { getStreams, calls: providerCalls, logs: providerLogs } = loadProvider(async (url, init) => {
     const value = String(url);
     if (value === "https://anikototv.bz/watch/test-anime") {
       return response('<div data-id="site-id-123"></div>', { url: value });
@@ -141,8 +141,8 @@ test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS 
   assert.equal(candidates[0].internalData, "https://subs.example/thumbnails.vtt");
   assert.deepEqual(Array.from(candidates[0].timestamps.map((item) => item.name)), ["Intro", "Outro"]);
 
-  const episodeCall = calls.find((call) => call.url.includes("/ajax/episode/list/"));
-  assert.ok(episodeCall, JSON.stringify({ calls: calls.map((call) => call.url), logs }, null, 2));
+  const episodeCall = providerCalls.find((call) => call.url.includes("/ajax/episode/list/"));
+  assert.ok(episodeCall, JSON.stringify({ calls: providerCalls.map((call) => call.url), logs: providerLogs }, null, 2));
   const episodeUrl = new URL(episodeCall.url);
   assert.ok(episodeUrl.searchParams.get("vrf"));
   assert.notEqual(episodeUrl.searchParams.get("vrf"), "");
