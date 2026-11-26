@@ -1064,7 +1064,7 @@
 
         var unpacked = playerScript;
         if (playerScript.indexOf("eval(function(p,a,c") >= 0) {
-          var unpackedParts = filemoonUnpack(playerScript);
+          var unpackedParts = packerUnpack(playerScript);
           if (!unpackedParts.length) continue;
           unpacked = unpackedParts.join(" ");
         }
