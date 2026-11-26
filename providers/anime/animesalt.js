@@ -40,10 +40,12 @@
     };
   }
 
-  async function request(url, headers, timeoutMs) {
+  async function request(url, headers, timeoutMs, init) {
     var timer;
+    var requestOptions = Object.assign({}, init || {});
+    requestOptions.headers = Object.assign({}, (init && init.headers) || {}, headers || {});
     var response = await Promise.race([
-      fetch(url, { headers: headers || {} }),
+      fetch(url, requestOptions),
       new Promise(function (_, reject) {
         timer = setTimeout(function () { reject(new Error("extractor request timeout")); }, timeoutMs || 10000);
       })
@@ -786,7 +788,7 @@
       var symbols = match[4].split("|");
       if (!Number.isFinite(count) || symbols.length !== count) continue;
       var decoded = payload.replace(/\b[a-zA-Z0-9_]+\b/g, function (word) {
-        var index = filemoonUnbase(word, radix);
+        var index = packerUnbase(word, radix);
         var replacement = index >= 0 && index < symbols.length ? symbols[index] : "";
         return replacement || word;
       });
@@ -1069,7 +1071,7 @@
 
         var unpacked = playerScript;
         if (playerScript.indexOf("eval(function(p,a,c") >= 0) {
-          var unpackedParts = filemoonUnpack(playerScript);
+          var unpackedParts = packerUnpack(playerScript);
           if (!unpackedParts.length) continue;
           unpacked = unpackedParts.join(" ");
         }
@@ -1099,9 +1101,222 @@
     return [];
   }
 
+
+  function htmlAttribute(tag, name) {
+    var re = new RegExp("\\b" + name + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))", "i");
+    var match = String(tag || "").match(re);
+    return match ? (match[1] || match[2] || match[3] || "") : "";
+  }
+
+  function openingTagWithClass(html, tagName, className) {
+    var tags = String(html || "").match(new RegExp("<" + tagName + "\\b[^>]*>", "gi")) || [];
+    for (var i = 0; i < tags.length; i++) {
+      var classValue = htmlAttribute(tags[i], "class").split(/\\s+/);
+      if (classValue.indexOf(className) >= 0) return tags[i];
+    }
+    return "";
+  }
+
+  function gogoDigits(html, tagName, className, marker) {
+    var tag = className === "body"
+      ? ((String(html || "").match(/<body\\b[^>]*>/i) || [""])[0])
+      : openingTagWithClass(html, tagName, className);
+    var cls = htmlAttribute(tag, "class");
+    var value = cls.substring(cls.indexOf(marker) + marker.length);
+    return new Uint8Array(Array.from(value).filter(function (ch) { return /\\d/.test(ch); }).map(function (ch) { return Number(ch); }));
+  }
+
+  async function aesCbc(data, keyBytes, ivBytes, operation) {
+    if (!root.crypto || !root.crypto.subtle) throw new Error("AES-CBC requires WebCrypto");
+    var key = await root.crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, [operation]);
+    var result = await root.crypto.subtle[operation]({ name: "AES-CBC", iv: ivBytes }, key, data);
+    return new Uint8Array(result);
+  }
+
+  async function gogostream(serverUrl, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(serverUrl || ""))) return [];
+    try {
+      var page = await request(serverUrl, options.pageHeaders || {}, 12000);
+      var html = await page.text();
+      var iv = gogoDigits(html, "div", "wrapper", "container-");
+      var secretKey = gogoDigits(html, "body", "body", "container-");
+      var decryptKey = gogoDigits(html, "div", "videocontent", "videocontent-");
+      var scriptTag = (html.match(/<script\\b[^>]*data-value=[^>]*>/i) || [""])[0];
+      var encryptedParams = htmlAttribute(scriptTag, "data-value");
+      if (!iv.length || !secretKey.length || !decryptKey.length || !encryptedParams) return [];
+      var decodedParams = bytesToUtf8(await aesCbc(decodeBase64Bytes(encryptedParams), secretKey, iv, "decrypt"));
+      decodedParams = decodedParams.substring(decodedParams.indexOf("&") + 1);
+      var input = new URL(serverUrl);
+      var id = input.searchParams.get("id");
+      if (!id) return [];
+      var encryptedId = encodeBase64NoPadding(await aesCbc(utf8Bytes(id), secretKey, iv, "encrypt"));
+      var ajaxUrl = input.origin + "/encrypt-ajax.php?id=" + encodeURIComponent(encryptedId) +
+        "&" + decodedParams + "&alias=" + encodeURIComponent(id);
+      var ajax = await request(ajaxUrl, { "X-Requested-With": "XMLHttpRequest" }, 10000);
+      var envelope = await ajax.json();
+      if (!envelope || typeof envelope.data !== "string") return [];
+      var decryptedJson = bytesToUtf8(await aesCbc(decodeBase64Bytes(envelope.data), decryptKey, iv, "decrypt"));
+      var decoded = JSON.parse(decryptedJson);
+      var sources = decoded && decoded.source;
+      if (!Array.isArray(sources)) return [];
+      var prefix = input.searchParams.has("token") ? "Gogostream - " : "Vidstreaming - ";
+      var out = [];
+      if (sources.length === 1 && String(sources[0].type || "").toLowerCase() === "hls") {
+        var headers = { Referer: serverUrl };
+        return await hlsCandidates(sources[0].file, options, prefix, headers, options.subtitles || []);
+      }
+      for (var i = 0; i < sources.length; i++) {
+        var item = sources[i] || {};
+        if (!item.file || !/^https:\\/\\//i.test(item.file)) continue;
+        var label = prefix + String(item.label || "Auto");
+        var video = candidate(options, item.file, label, String(item.label || "Auto"), "mp4", { Referer: serverUrl }, options.subtitles || []);
+        if (video) out.push(video);
+      }
+      return out;
+    } catch (error) {
+      if (options.log) options.log("[GogoStream] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+  function decodeOkruOptions(value) {
+    var raw = String(value || "").replace(/&quot;/gi, "\"").replace(/&#39;|&apos;/gi, "'")
+      .replace(/&amp;/gi, "&").replace(/\\\\u0026/gi, "&").replace(/\\\\\\//g, "/");
+    try { return JSON.parse(raw); } catch (_) {}
+    var out = {};
+    ["ondemandHls", "ondemandDash"].forEach(function (key) {
+      var re = new RegExp(key + "(\\\\\\\\*[\"'])\\\\s*:\\\\s*\\\\1(.*?)\\\\1", "i");
+      var match = raw.match(re);
+      if (match) out[key] = match[2].replace(/\\\\\\\\/g, "").replace(/\\\\u0026/gi, "&");
+    });
+    var videos = raw.match(/\"videos\"\\s*:\\s*(\\[[\\s\\S]*?\\])/i);
+    if (videos) { try { out.videos = JSON.parse(videos[1]); } catch (_) {} }
+    return out;
+  }
+
+  function okruQuality(name, fixQualities) {
+    var value = String(name || "").replace(/^\"|\"$/g, "");
+    if (!fixQualities) return value || "Auto";
+    var map = { ultra: "2160p", quad: "1440p", full: "1080p", hd: "720p", sd: "480p", low: "360p", lowest: "240p", mobile: "144p" };
+    return map[value.toLowerCase()] || value || "Auto";
+  }
+
+  async function okru(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(url || ""))) return [];
+    try {
+      var headers = options.pageHeaders || {};
+      var page = await request(url, headers, 12000);
+      var html = await page.text();
+      var tag = (html.match(/<div\\b[^>]*data-options=[^>]*>/i) || [""])[0];
+      var rawOptions = htmlAttribute(tag, "data-options");
+      if (!rawOptions) return [];
+      var data = decodeOkruOptions(rawOptions);
+      var prefix = String(options.labelPrefix || "");
+      if (data.ondemandHls) {
+        return await hlsCandidates(data.ondemandHls, options, (prefix ? prefix + " " : "") + "Okru:", headers, options.subtitles || []);
+      }
+      if (data.ondemandDash) {
+        var dash = candidate(options, data.ondemandDash, (prefix ? prefix + " " : "") + "Okru: Dash", "Auto", "mpd", headers, options.subtitles || []);
+        return dash ? [dash] : [];
+      }
+      var videos = Array.isArray(data.videos) ? data.videos.slice().reverse() : [];
+      var out = [];
+      videos.forEach(function (item) {
+        if (!item || !item.url || !/^https:\\/\\//i.test(item.url)) return;
+        var q = okruQuality(item.name, options.fixQualities !== false);
+        var label = (prefix ? prefix + " " : "") + "Okru:" + q;
+        var video = candidate(options, item.url, label, q, "mp4", headers, options.subtitles || []);
+        if (video) out.push(video);
+      });
+      return out;
+    } catch (error) {
+      if (options.log) options.log("[OK.ru] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+  async function mp4upload(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(url || ""))) return [];
+    try {
+      var headers = Object.assign({}, options.pageHeaders || {}, { Referer: "https://mp4upload.com/" });
+      var page = await request(url, headers, 12000);
+      var html = await page.text();
+      var scripts = html.match(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi) || [];
+      var script = scripts.map(function (tag) { return (tag.match(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/i) || [,""])[1]; })
+        .find(function (body) { return /eval\\(function\\(p,a,c,k,e,d\\)/i.test(body) || /player\\.src|\\.src\\(/i.test(body); }) || "";
+      if (!script) return [];
+      if (/eval\\(function\\(p,a,c,k,e,d\\)/i.test(script)) {
+        var unpacked = packerUnpack(script);
+        if (unpacked.length) script = unpacked.join("\\n");
+      }
+      var videoUrl = (script.match(/\\.src\\s*\\(\\s*[\"']([^\"']+)[\"']\\s*\\)/i) || script.match(/\\bsrc\\s*:\\s*[\"']([^\"']+)[\"']/i) || [,""])[1];
+      if (!videoUrl || !/^https?:\\/\\//i.test(videoUrl)) return [];
+      var height = (script.match(/\\WHEIGHT=(\\d+)/i) || [,""])[1];
+      var qualityLabel = height ? height + "p" : "Unknown resolution";
+      var title = (options.labelPrefix ? options.labelPrefix + " " : "") + "Mp4Upload - " + qualityLabel;
+      var video = candidate(options, videoUrl, title, height ? quality(height) : "Auto", "mp4", headers, options.subtitles || []);
+      return video ? [video] : [];
+    } catch (error) {
+      if (options.log) options.log("[Mp4Upload] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+  async function streamlare(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var id = new URL(url).pathname.split("/").filter(Boolean).pop();
+      if (!id) return [];
+      var response = await request("https://slwatch.co/api/video/stream/get", {}, 10000, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id })
+      });
+      var body = await response.text();
+      var type = (body.match(/"type"\s*:\s*"([^"]+)"/i) || [, ""])[1];
+      var prefix = String(options.labelPrefix || "");
+      if (type === "hls") {
+        var master = (body.match(/"file"\s*:\s*"([^"]+)"/i) || [, ""])[1] || "";
+        master = master.replace(/\\\//g, "/").replace(/&amp;/g, "&");
+        if (!/^https:\/\//i.test(master)) return [];
+        return await hlsCandidates(master, options, (prefix ? prefix + " " : "") + "Streamlare:", {}, options.subtitles || []);
+      }
+
+      // The Kotlin extractor iterates each "label" block, POSTs its "file"
+      // API URL, then uses the final redirect URL as the actual media source.
+      var blocks = body.split(/"label"\s*:\s*"/i).slice(1), out = [];
+      for (var i = 0; i < blocks.length; i++) {
+        var block = blocks[i];
+        var label = block.split('"')[0].replace(/\\"/g, '"');
+        var apiUrl = (block.match(/"file"\s*:\s*"([^"]+)"/i) || [, ""])[1] || "";
+        apiUrl = apiUrl.replace(/\\\//g, "/").replace(/\\\\/g, "");
+        if (!/^https?:\/\//i.test(apiUrl)) continue;
+        var redirected = await request(apiUrl, {}, 10000, { method: "POST" });
+        var mediaUrl = redirected.url || apiUrl;
+        if (!/^https:\/\//i.test(mediaUrl)) continue;
+        var title = (prefix ? prefix + " " : "") + "Streamlare:" + (label || "Auto");
+        var video = candidate(options, mediaUrl, title, label || "Auto", "mp4", {}, options.subtitles || []);
+        if (video) out.push(video);
+      }
+      return out;
+    } catch (error) {
+      if (options.log) options.log("[Streamlare] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
   root.RAWAnimeExtractors = {
     streamwish: streamwish,
     embedseek: embedseek,
+    unpackPacker: packerUnpack,
+    gogostream: gogostream,
+    okru: okru,
+    mp4upload: mp4upload,
+    streamlare: streamlare,
     abyss: abyss,
     dood: dood,
     streamtape: streamtape,
