@@ -235,7 +235,7 @@
     {
       "id": "net77",
       "name": "NetMirror (Net77)",
-      "description": "Pending a host-owned NetMirror verification/session handoff. The current script attempts a synthetic reCAPTCHA response and must not be enabled until replaced with a legitimate user-completed verification flow.",
+      "description": "Disabled pending a legitimate RAW host handoff for user-completed NetMirror verification. The synthetic reCAPTCHA response path is not used; automated challenge solving is not supported.",
       "version": "1.0.1",
       "author": "Secondary Agent",
       "supportedTypes": [
@@ -243,7 +243,7 @@
         "tv"
       ],
       "filename": "providers/movie-tv/net77.js",
-      "enabled": true,
+      "enabled": false,
       "hasSettings": false,
       "formats": [
         "m3u8"
