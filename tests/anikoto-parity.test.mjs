@@ -75,7 +75,6 @@ test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS 
   const secondPathKey = "abcdef0123456789abcdef0123456789";
   const masterUrl = "https://cdn.example/" + firstPathKey + "/" + secondPathKey + "/master.m3u8";
   const encrypted = await encryptMegaFile(masterUrl);
-  const calls = [];
   const { getStreams, calls: providerCalls, logs: providerLogs } = loadProvider(async (url, init) => {
     const value = String(url);
     if (value === "https://anikototv.bz/watch/test-anime") {
@@ -148,7 +147,7 @@ test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS 
   assert.notEqual(episodeUrl.searchParams.get("vrf"), "");
   assert.equal(episodeCall.init.headers.Referer, "https://anikototv.bz/watch/test-anime");
 
-  const sourcesCall = calls.find((call) => call.url.includes("/stream/getSources?"));
+  const sourcesCall = providerCalls.find((call) => call.url.includes("/stream/getSources?"));
   assert.ok(sourcesCall, JSON.stringify({ calls: providerCalls.map((call) => call.url), logs: providerLogs }, null, 2));
   const sourcesUrl = new URL(sourcesCall.url);
   assert.equal(sourcesUrl.searchParams.get("id"), "media-id-token");
@@ -156,7 +155,7 @@ test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS 
   assert.equal(sourcesUrl.searchParams.get("s"), "fixture-session");
   assert.equal(sourcesCall.init.headers.Referer, embedUrl);
 
-  const masterCall = calls.find((call) => call.url.startsWith(masterUrl));
+  const masterCall = providerCalls.find((call) => call.url.startsWith(masterUrl));
   assert.ok(masterCall);
   assert.equal(masterCall.init.headers.Referer, "https://megaplay.buzz/");
   assert.equal(masterCall.init.headers.Origin, "https://megaplay.buzz");
