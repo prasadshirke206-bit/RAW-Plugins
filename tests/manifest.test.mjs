@@ -44,6 +44,14 @@ test("provider IDs are unique and all referenced files exist", () => {
   }
 });
 
+test("NetMirror remains disabled until a legitimate user-completed verification handoff exists", () => {
+  const provider = manifest.providers.find((item) => item.id === "net77");
+  assert.ok(provider, "net77 catalogue entry");
+  assert.equal(provider.enabled, false);
+  assert.match(provider.description, /user-completed verification/i);
+  assert.match(provider.description, /synthetic reCAPTCHA response path is not used/i);
+});
+
 test("movie/TV provider catalogue entries remain intact", () => {
   const movieTv = manifest.providers.filter((provider) =>
     provider.supportedTypes.includes("movie") || provider.supportedTypes.includes("tv")
