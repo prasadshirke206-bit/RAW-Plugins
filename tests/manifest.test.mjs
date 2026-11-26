@@ -48,7 +48,7 @@ test("NetMirror remains disabled until a legitimate user-completed verification 
   const provider = manifest.providers.find((item) => item.id === "net77");
   assert.ok(provider, "net77 catalogue entry");
   assert.equal(provider.enabled, false);
-  assert.match(provider.description, /user-completed verification/i);
+  assert.match(provider.description, /user-completed NetMirror verification/i);
   assert.match(provider.description, /synthetic reCAPTCHA response path is not used/i);
 });
 
