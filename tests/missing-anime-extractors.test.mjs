@@ -103,11 +103,14 @@ test("GogoStream follows the Kotlin class-digit AES request and source decryptio
     throw new Error("Unexpected GogoStream request: " + value);
   });
 
+  const diagnostics = [];
+  const settings = options();
+  settings.log = (message) => diagnostics.push(message);
   const candidates = await extractors.gogostream(
     "https://gogo.example/playerlink.php?id=episode42&token=site-token",
-    options()
+    settings
   );
-  assert.equal(candidates.length, 1);
+  assert.equal(candidates.length, 1, diagnostics.join("\\n"));
   assert.equal(candidates[0].url, "https://cdn.example/gogo/720.mp4");
   assert.equal(candidates[0].quality, "720p");
   assert.equal(candidates[0].type, "mp4");
