@@ -1517,20 +1517,143 @@ async function aaDirectOrEmbed(url, label, lang, iframeEndpoint, subtitles) {
     return out;
   } catch (_) { return []; }
 }
+function aaHumanBitrate(value) {
+  var n = Number(value || 0);
+  if (n >= 1000000000000) return Math.floor(n / 1000000000000) + " tb/s";
+  if (n >= 1000000000) return Math.floor(n / 1000000000) + " gb/s";
+  if (n >= 1000000) return Math.floor(n / 1000000) + " mb/s";
+  if (n >= 1000) return Math.floor(n / 1000) + " kb/s";
+  return n + " b/s";
+}
+function aaSubtitleTracks(list) {
+  var languages = { en: "English", ja: "Japanese", es: "Spanish", pt: "Portuguese", fr: "French", de: "German", it: "Italian", ru: "Russian", zh: "Chinese", ko: "Korean", ar: "Arabic" };
+  return (list || []).map(function (sub) {
+    if (!sub || !sub.src || !/^https:\/\//i.test(sub.src)) return null;
+    var lang = String(sub.lang || "en").toLowerCase().split("-")[0];
+    var label = languages[lang] || String(sub.lang || "Unknown");
+    if (sub.label) label += " - " + sub.label;
+    return { url: sub.src, lang: label };
+  }).filter(Boolean);
+}
 async function aaInternal(rawPath, serverName, lang, iframeEndpoint) {
   try {
     var endpoint = iframeEndpoint.replace(/\/+$/, "");
-    var data = await aaJson(endpoint + rawPath.replace("/clock?", "/clock.json?"), { headers: Object.assign({}, ALLANIME_HEADERS, { "Referer": endpoint + "/" }) }, 10000);
+    var headers = {
+      "Accept": "*/*",
+      "Origin": endpoint,
+      "Referer": endpoint + "/"
+    };
+    var data = await aaJson(endpoint + rawPath.replace("/clock?", "/clock.json?"), { headers: headers }, 10000);
     var links = data && data.links || [], out = [];
     for (var i = 0; i < links.length; i++) {
       var link = links[i] || {};
-      var subs = (link.subtitles || []).map(function (s) { return s && s.src && /^https:\/\//i.test(s.src) ? { url: s.src, lang: s.label || s.lang || "Unknown" } : null; }).filter(Boolean);
-      if (link.mp4 && link.link) { var mp4 = aaCandidate(link.link, serverName, aaQuality(link.resolution), "mp4", lang, ALLANIME_HEADERS, subs); if (mp4) out.push(mp4); }
-      else if (link.hls && link.link) out = out.concat(await aaHls(link.link, serverName, lang, ALLANIME_HEADERS, subs));
+      var subtitles = aaSubtitleTracks(link.subtitles);
+      if (link.mp4 === true && link.link) {
+        var direct = aaCandidate(link.link, "Original (" + serverName + " - " + (link.resolutionStr || "Auto") + ")",
+          link.resolutionStr || "Auto", "mp4", headers, subtitles);
+        if (direct) out.push(direct);
+        continue;
+      }
+      if (link.hls === true && link.link) {
+        var hlsHeaders = Object.assign({}, headers, { "Host": new URL(link.link).host });
+        out = out.concat(await aaHls(link.link,
+          serverName + " - " + (link.resolutionStr || "Auto"), lang, hlsHeaders, subtitles));
+        continue;
+      }
+      if (link.crIframe === true) {
+        var streams = link.portData && link.portData.streams || [];
+        for (var p = 0; p < streams.length; p++) {
+          var stream = streams[p] || {};
+          if (!stream.url || !/^https:\/\//i.test(stream.url)) continue;
+          var hardSub = stream.hardsub_lang ? " - Hardsub: " + stream.hardsub_lang : "";
+          if (stream.format === "adaptive_dash") {
+            var dashCandidate = aaCandidate(stream.url, "Original (AC - Dash" + hardSub + ")",
+              "Auto", "mpd", headers, subtitles);
+            if (dashCandidate) out.push(dashCandidate);
+          } else if (stream.format === "adaptive_hls") {
+            out = out.concat(await aaHls(stream.url, "AC - HLS" + hardSub, lang, headers, subtitles));
+          }
+        }
+        continue;
+      }
+      if (link.dash === true && link.rawUrls) {
+        var audioTracks = (link.rawUrls.audios || []).map(function (audio) {
+          return audio && audio.url ? { url: audio.url, lang: aaHumanBitrate(audio.bandwidth) } : null;
+        }).filter(Boolean);
+        (link.rawUrls.vids || []).forEach(function (video) {
+          if (!video || !video.url || !/^https:\/\//i.test(video.url)) return;
+          var title = serverName + " - " + (video.height || "Auto") + " " + aaHumanBitrate(video.bandwidth);
+          var candidate = aaCandidate(video.url, title, video.height ? aaQuality(video.height) : "Auto",
+            "mpd", headers, subtitles);
+          if (candidate) {
+            candidate.audioTracks = audioTracks;
+            out.push(candidate);
+          }
+        });
+      }
     }
     return out;
-  } catch (_) { return []; }
+  } catch (error) {
+    console.log("[AllAnime] internal endpoint failed: " + String(error && error.message || error));
+    return [];
+  }
 }
+
+async function aaAlternative(sourceUrl, sourceName, sourceType, lang, iframeEndpoint, anilistId, episodeNumber) {
+  var ext = globalThis && globalThis.RAWAnimeExtractors;
+  var clean = String(sourceUrl || "").replace(/^\/\//, "https://");
+  if (!clean) return [];
+  var options = {
+    provider: ALLANIME_ID,
+    anilistId: String(anilistId),
+    episodeNumber: Number(episodeNumber),
+    language: lang,
+    labelPrefix: String(sourceName || "AllAnime") + " (" + String(lang).toUpperCase() + ")",
+    pageHeaders: Object.assign({}, ALLANIME_HEADERS, { "Referer": iframeEndpoint + "/" }),
+    log: function (message) { console.log(message); }
+  };
+
+  if (sourceType === "player") {
+    if (!/^https:\/\//i.test(clean)) return [];
+    var playerHeaders = Object.assign({}, ALLANIME_HEADERS, {
+      "Accept": "video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5",
+      "Host": new URL(clean).host,
+      "Referer": iframeEndpoint + "/"
+    });
+    var player = aaCandidate(clean, "Original (player " + sourceName + ")", "Auto", "mp4", playerHeaders, []);
+    return player ? [player] : [];
+  }
+  if (/vidstreaming|gogo|playgo1\.cc|playtaku|vidcloud/i.test(clean + " " + sourceName)) {
+    return ext ? await ext.gogostream(clean, options) : [];
+  }
+  if (/dood/i.test(clean + " " + sourceName)) {
+    return ext ? await ext.dood(clean, options) : [];
+  }
+  if (/ok\.ru|okru/i.test(clean + " " + sourceName)) {
+    return ext ? await ext.okru(clean, options) : [];
+  }
+  if (/mp4upload\.com/i.test(clean + " " + sourceName)) {
+    return ext ? await ext.mp4upload(clean, options) : [];
+  }
+  if (/streamlare\.com|slwatch\.co/i.test(clean + " " + sourceName)) {
+    return ext ? await ext.streamlare(clean, options) : [];
+  }
+  if (/streamwish|wish/i.test(clean + " " + sourceName)) {
+    return ext ? await ext.streamwish(clean, options) : [];
+  }
+  if (/filemoon|moonplayer/i.test(clean + " " + sourceName)) {
+    console.log("[AllAnime] Filemoon route intentionally disabled: its current extractor requires automated challenge/PoW verification");
+    return [];
+  }
+  // The Kotlin extension only invokes extractors for known hoster mappings.
+  // For other URLs accept an observed direct media file/playlist, never an
+  // unresolved HTML embed page.
+  if (/\.(?:m3u8|mp4|mkv|mpd)(?:$|[?#])/i.test(clean)) {
+    return await aaDirectOrEmbed(clean, options.labelPrefix, lang, iframeEndpoint, []);
+  }
+  return [];
+}
+
 async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
   try {
     var context = Object.assign({}, aaContext(), extraArgs || {});
@@ -1595,8 +1718,8 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
         if (!sourceUrl) continue;
         if (sourceUrl.indexOf("/apivtwo/") === 0 && ALLANIME_INTERNAL_HOSTS.some(function (h) { return name.toLowerCase().indexOf(h.toLowerCase()) >= 0; })) {
           out = out.concat(await aaInternal(sourceUrl, name + " (" + lang + ")", lang, iframeEndpoint));
-        } else if (/^https?:\/\//i.test(sourceUrl)) {
-          out = out.concat(await aaDirectOrEmbed(sourceUrl, name + " (" + lang + ")", lang, iframeEndpoint, []));
+        } else if (/^https?:\/\//i.test(sourceUrl) || /^\/\//.test(sourceUrl)) {
+          out = out.concat(await aaAlternative(sourceUrl, name, item.type, lang, iframeEndpoint, id, ep));
         }
       }
     }
