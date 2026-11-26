@@ -1418,7 +1418,7 @@
       };
       var streamingUrl = "";
       if (/^upns\.pro$/i.test(host) || /upns\.pro$/i.test(host)) {
-        var apiResponse = await request(base + "/api/v1/video?id=" + encodeURIComponent(filecode), headers, 12000);
+        var apiResponse = await request(base + "/api/v1/video?id=" + filecode, headers, 12000);
         var decoded = decodeVidaraHex(await apiResponse.text());
         if (!decoded) return [];
         var data;
