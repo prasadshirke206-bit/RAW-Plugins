@@ -1317,19 +1317,19 @@
 
 
   function vidhideTracks(script, baseUrl) {
-    var match = String(script || "").match(/tracks\\s*:\\s*\\[([\\s\\S]*?)\\]/i);
+    var match = String(script || "").match(/tracks\s*:\s*\[([\s\S]*?)\]/i);
     if (!match) return [];
-    var blocks = match[1].match(/\\{[^{}]*\\}/g) || [];
+    var blocks = match[1].match(/\{[^{}]*\}/g) || [];
     var tracks = [];
     for (var i = 0; i < blocks.length; i++) {
       var block = blocks[i];
-      var kind = (block.match(/kind\\s*:\\s*["']([^"']+)["']/i) || [, ""])[1];
+      var kind = (block.match(/kind\s*:\s*["']([^"']+)["']/i) || [, ""])[1];
       if (String(kind).toLowerCase() !== "captions") continue;
-      var file = (block.match(/file\\s*:\\s*["']([^"']+)["']/i) || [, ""])[1];
-      var label = (block.match(/label\\s*:\\s*["']([^"']+)["']/i) || [, ""])[1] || "Subtitle";
+      var file = (block.match(/file\s*:\s*["']([^"']+)["']/i) || [, ""])[1];
+      var label = (block.match(/label\s*:\s*["']([^"']+)["']/i) || [, ""])[1] || "Subtitle";
       if (!file) continue;
       var fixed = absolute(file, baseUrl);
-      if (fixed && /^https:\\/\\//i.test(fixed) && !tracks.some(function (item) { return item.url === fixed; })) {
+      if (fixed && /^https:\/\//i.test(fixed) && !tracks.some(function (item) { return item.url === fixed; })) {
         tracks.push({ url: fixed, lang: label });
       }
     }
@@ -1338,22 +1338,22 @@
 
   async function vidhide(url, options) {
     options = options || {};
-    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(url || ""))) return [];
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
     try {
       var headers = options.pageHeaders || {};
       var response = await request(url, headers, 12000);
       var pageUrl = response.url || url;
       var html = await response.text();
-      var scripts = html.match(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi) || [];
-      var scriptTag = scripts.find(function (tag) { return /eval\\(function\\(p,a,c,k,e,d\\)/i.test(tag); }) || "";
+      var scripts = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+      var scriptTag = scripts.find(function (tag) { return /eval\(function\(p,a,c,k,e,d\)/i.test(tag); }) || "";
       if (!scriptTag) return [];
       var unpacked = packerUnpack(scriptTag);
-      var script = unpacked.length ? unpacked.join("\\n") : scriptTag;
-      var urls = [], matches = script.match(/["']((?:https?:\\/)?\\/[^"'<>]*m3u8[^"'<>]*)["']/gi) || [];
+      var script = unpacked.length ? unpacked.join("\n") : scriptTag;
+      var urls = [], matches = script.match(/["']((?:https?:\/)?\/[^"'<>]*m3u8[^"'<>]*)["']/gi) || [];
       for (var i = 0; i < matches.length; i++) {
-        var value = (matches[i].match(/["']((?:https?:\\/)?\\/[^"'<>]*m3u8[^"'<>]*)["']/i) || [, ""])[1];
+        var value = (matches[i].match(/["']((?:https?:\/)?\/[^"'<>]*m3u8[^"'<>]*)["']/i) || [, ""])[1];
         var fixed = absolute(value, pageUrl);
-        if (fixed && /^https:\\/\\//i.test(fixed) && urls.indexOf(fixed) < 0) urls.push(fixed);
+        if (fixed && /^https:\/\//i.test(fixed) && urls.indexOf(fixed) < 0) urls.push(fixed);
       }
       if (!urls.length) return [];
       var subtitles = vidhideTracks(script, pageUrl);
@@ -1397,7 +1397,7 @@
 
   async function vidara(url, options) {
     options = options || {};
-    if (!validRequest(options) || !/^https?:\\/\\//i.test(String(url || ""))) return [];
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
     try {
       var input = new URL(String(url));
       var host = input.host;
@@ -1410,7 +1410,7 @@
         "Referer": base + "/"
       };
       var streamingUrl = "";
-      if (/^upns\\.pro$/i.test(host) || /upns\\.pro$/i.test(host)) {
+      if (/^upns\.pro$/i.test(host) || /upns\.pro$/i.test(host)) {
         var apiResponse = await request(base + "/api/v1/video?id=" + encodeURIComponent(filecode), headers, 12000);
         var decoded = decodeVidaraHex(await apiResponse.text());
         if (!decoded) return [];
@@ -1428,7 +1428,7 @@
         try { payload = await api.json(); } catch (_) { payload = null; }
         streamingUrl = payload && payload.streaming_url || "";
       }
-      if (!streamingUrl || !/^https:\\/\\//i.test(streamingUrl)) return [];
+      if (!streamingUrl || !/^https:\/\//i.test(streamingUrl)) return [];
       return await hlsCandidates(
         streamingUrl,
         options,
