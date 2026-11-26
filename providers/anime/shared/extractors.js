@@ -781,7 +781,7 @@
       var symbols = match[4].split("|");
       if (!Number.isFinite(count) || symbols.length !== count) continue;
       var decoded = payload.replace(/\b[a-zA-Z0-9_]+\b/g, function (word) {
-        var index = filemoonUnbase(word, radix);
+        var index = packerUnbase(word, radix);
         var replacement = index >= 0 && index < symbols.length ? symbols[index] : "";
         return replacement || word;
       });
@@ -1097,6 +1097,7 @@
   root.RAWAnimeExtractors = {
     streamwish: streamwish,
     embedseek: embedseek,
+    unpackPacker: packerUnpack,
     abyss: abyss,
     dood: dood,
     streamtape: streamtape,
