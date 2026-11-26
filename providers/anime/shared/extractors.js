@@ -1357,13 +1357,14 @@
       }
       if (!urls.length) return [];
       var subtitles = vidhideTracks(script, pageUrl);
+      var streamHeaders = Object.assign({}, headers, { Referer: String(url) });
       var out = [];
       for (var j = 0; j < urls.length; j++) {
         out = out.concat(await hlsCandidates(
           urls[j],
           options,
           (options.labelPrefix ? String(options.labelPrefix) + " " : "") + "VidHide:",
-          headers,
+          streamHeaders,
           subtitles
         ));
       }
@@ -1377,7 +1378,7 @@
   function vidaraFileCode(url) {
     try {
       var input = new URL(String(url || ""));
-      if (input.hash && input.hash.length > 1) return input.hash.substring(1).split("&")[0];
+      if (input.hash && input.hash.length > 1) return input.hash.substring(1);
       var parts = input.pathname.split("/").filter(Boolean);
       var eIndex = parts.lastIndexOf("e");
       if (eIndex >= 0 && parts[eIndex + 1]) return parts[eIndex + 1];
@@ -1389,7 +1390,7 @@
 
   function decodeVidaraHex(value) {
     var hex = String(value || "").trim();
-    if (!hex || hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) return "";
+    if (!hex || !/^[0-9a-f]+$/i.test(hex)) return "";
     var out = "";
     for (var i = 0; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.substring(i, i + 2), 16));
     return out.split("").reverse().join("");
@@ -1429,11 +1430,17 @@
         streamingUrl = payload && payload.streaming_url || "";
       }
       if (!streamingUrl || !/^https:\/\//i.test(streamingUrl)) return [];
+      // Kotlin's PlaylistUtils receives the original embed URL as its Referer.
+      // The API request uses the host root; the media/playlist request uses the embed.
+      var streamHeaders = {
+        "User-Agent": userAgent,
+        Referer: String(url)
+      };
       return await hlsCandidates(
         streamingUrl,
         options,
         (options.labelPrefix ? String(options.labelPrefix) + " " : "") + "Vidara:",
-        headers,
+        streamHeaders,
         options.subtitles || []
       );
     } catch (error) {
