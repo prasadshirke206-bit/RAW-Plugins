@@ -46,8 +46,9 @@ for (const relativePath of targets) {
   let updated = current.replace(pattern, () => block);
 
   if (synchronyTargets.has(relativePath)) {
+    // Greedy range collapses duplicate/nested Synchrony blocks from older bundle updates.
     const synchronyPattern = new RegExp(
-      escapeRegExp(synchronyStart) + "[\\s\\S]*?" + escapeRegExp(synchronyEnd)
+      escapeRegExp(synchronyStart) + "[\\s\\S]*" + escapeRegExp(synchronyEnd)
     );
     if (synchronyPattern.test(updated)) {
       updated = updated.replace(synchronyPattern, () => synchronyBlock);
@@ -79,5 +80,5 @@ if (checkOnly && stale.length) {
 }
 
 function escapeRegExp(value) {
-  return value.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+  return value.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
 }
