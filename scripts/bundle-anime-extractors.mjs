@@ -80,5 +80,5 @@ if (checkOnly && stale.length) {
 }
 
 function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
