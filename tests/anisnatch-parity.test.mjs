@@ -59,6 +59,33 @@ function sealApiResponse(data, authenticator) {
   return Buffer.concat([Buffer.from([0x00, 0x02, 0x03]), marker, encrypted]);
 }
 
+function reverseSmc(input, passes) {
+  let value = String(input);
+  for (let pass = 0; pass < passes; pass++) {
+    value = value.split("").map((ch) => {
+      const pos = alphabet.indexOf(ch);
+      return pos < 0 ? ch : alphabet[(pos - 5 + alphabet.length) % alphabet.length];
+    }).reverse().join("");
+  }
+  return value;
+}
+
+function decodeRequestBody(envelope) {
+  const chunks = new Array(envelope.data.length);
+  for (let i = 0; i < envelope.data.length; i++) chunks[envelope.key[i]] = envelope.data[i];
+  const encoded = chunks.join("");
+  for (let outerPasses = 1; outerPasses <= 10; outerPasses++) {
+    const combined = reverseSmc(encoded, outerPasses);
+    const match = combined.match(/^(.*)strSMCconvert(10|[1-9])$/);
+    if (!match) continue;
+    const hex = reverseSmc(match[1], Number(match[2]));
+    if (!/^(?:[0-9a-f]{2})+$/i.test(hex)) continue;
+    const base64 = Buffer.from(hex, "hex").toString("utf8");
+    try { return JSON.parse(Buffer.from(base64, "base64").toString("utf8")); } catch (_) {}
+  }
+  throw new Error("Unable to decode AniSnatch SMC request fixture");
+}
+
 function loadProvider(fetchImpl) {
   const calls = [];
   const sandbox = {
@@ -190,11 +217,12 @@ test("AniSnatch decrypts a marker + XOR + gzip API response and resolves the exa
   assert.deepEqual(apiRequests.map((x) => x.endpoint), [
     "api/search", "api/anime", "api/init", "api/loadSVs"
   ]);
-  assert.equal(apiRequests[0].payload.keyword, "Fixture Anime");
-  assert.equal(apiRequests[0].payload.page, 1);
-  assert.equal(apiRequests[3].payload.id, 77);
-  assert.equal(apiRequests[3].payload.ep, 2);
-  assert.equal(apiRequests[3].payload.token, "fixture-session-token");
+  assert.deepEqual(apiRequests.map((request) => decodeRequestBody(request.payload)), [
+    { keyword: "Fixture Anime", page: 1 },
+    { id: 77 },
+    { token: "" },
+    { id: 77, ep: 2, token: "fixture-session-token" }
+  ]);
   for (const request of apiRequests) {
     const expectedAuthenticator = Array.from(request.payload.token).reduce((sum, ch) => sum + ch.charCodeAt(0), 0).toString();
     assert.equal(request.payload.authenticator, expectedAuthenticator);
