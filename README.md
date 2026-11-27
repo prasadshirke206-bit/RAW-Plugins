@@ -56,6 +56,7 @@ The anime catalogue contains 27 provider entries, and all 27 are enabled in the 
 | Anikage | AniList title mapping, browse/detail/episode/server/source requests, Koto/Rai routes, proxy token resolution, HLS variants and subtitles | Hosts requiring the original Android loopback HLS relay are omitted |
 | Anikoto | Kotlin-compatible VRF episode-list signing, mirror/title matching, server and mapper fallback, MegaPlay AES-CBC source decryption, 90-second HMAC-SHA256 CDN token generation, ASS-first subtitle selection and intro/outro metadata | Browser verification/challenge-dependent routes remain unsupported; real endpoint and device playback verification are still outstanding |
 | AnimeSuge | Kotlin-compatible RC4 → Base64URL → cyclic byte-shift → Base64URL → ROT13 VRF, exact-title search, `data-ids` episode lookup, server API lookup and direct HLS/MegaPlay paths | Shared AnikotoTheme extractor coverage, native playlist/key proxy, full metadata behavior and Android/MPV playback remain incomplete |
+| AniSnatch | Dynamic site-config SMC request encoder, shuffled/chunked API payloads, marker/XOR/gzip response decoding, AniList title mapping, exact episode/server lookup and visible direct HLS/MP4 sources | Kotlin playlist/segment/key rewriting, full hoster extractor parity, settings preferences and Android/MPV playback remain incomplete |
 | AniLight | AniList-backed API lookup, episode matching, public MegaPlay embed, AES-CBC source parsing, HLS variants and subtitles | Non-MegaPlay routes relying on WebView/Turnstile require a host-provided browser capability; QuickJS does not emulate that browser |
 | Miruro | AniList episode matching, secure-pipe envelope and XOR/gzip response decoding, provider/subtype fallback, rotating proxy configuration, direct HLS relay URLs and source subtitle tracks | Uses ordinary HTTP requests and fails closed on WAF/Cloudflare denial. Android-only embed extractors and local HLS relay are not emulated |
 | AniChan | AniList ID → episodes/servers API, direct HLS/MP4 and subtitle tracks | Non-direct embed resolvers are omitted |
@@ -111,12 +112,12 @@ Original Kotlin source is retained under its own upstream attribution and Apache
 
 ## Pending implementations (catalogue-enabled, resolver fail-closed)
 
-The following eight sources are enabled in the manifest catalogue but still have placeholder JavaScript entrypoints that return no streams. Their Kotlin originals are retained as references until a legitimate QuickJS or RAW-native implementation is complete:
+The following seven sources are enabled in the manifest catalogue but still have placeholder JavaScript entrypoints that return no streams. Their Kotlin originals are retained as references until a legitimate QuickJS or RAW-native implementation is complete:
 
 - **AniLab** — requires Kyoto Player official-client request signing.
 - **AnimePahe** — depends on Cloudflare/session handling and native HLS/Kwik extractors.
 - **AnimeSogo** — depends on shared AnikotoTheme extraction behavior and its Sogo-specific VRF; the required shared implementation and native playlist proxy are not yet fully ported.
-- **AniSnatch** — dynamic site-config request/response cipher and gzip binary framing are not yet ported and tested.
+
 - **AniWave** — depends on a VRF/extractor chain and native HLS proxy.
 - **AV1Encodes** — current flow includes verification/ad-check dependencies and native extractors.
 - **ReAnime** — depends on the local FlixProxyServer.
