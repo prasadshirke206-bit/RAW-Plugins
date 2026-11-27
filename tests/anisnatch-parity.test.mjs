@@ -142,8 +142,7 @@ test("AniSnatch decrypts a marker + XOR + gzip API response and resolves the exa
       if (route[1] === "api/loadSVs") {
         return apiBody({
           server: {
-            sub: [{ title: "AniVibe", source: "fixture-video-id" }],
-            dub: [{ title: "OtherServer", source: "unused-video-id" }]
+            sub: [{ title: "AniVibe", source: "fixture-video-id" }]
           }
         }, payload.authenticator);
       }
@@ -196,10 +195,11 @@ test("AniSnatch decrypts a marker + XOR + gzip API response and resolves the exa
   assert.equal(apiRequests[3].payload.id, 77);
   assert.equal(apiRequests[3].payload.ep, 2);
   assert.equal(apiRequests[3].payload.token, "fixture-session-token");
-  assert.equal(apiRequests[3].payload.authenticator,
-    Array.from(apiRequests[3].payload.token || "").reduce((sum, ch) => sum + ch.charCodeAt(0), 0).toString()
-    === apiRequests[3].payload.authenticator ? apiRequests[3].payload.authenticator : apiRequests[3].payload.authenticator
-  );
+  for (const request of apiRequests) {
+    const expectedAuthenticator = Array.from(request.payload.token).reduce((sum, ch) => sum + ch.charCodeAt(0), 0).toString();
+    assert.equal(request.payload.authenticator, expectedAuthenticator);
+    assert.ok(request.payload.data.length === request.payload.key.length);
+  }
 });
 
 test("AniSnatch rejects wrong media types and invalid AniList/episode inputs without networking", async () => {
