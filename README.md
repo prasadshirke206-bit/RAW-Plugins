@@ -115,7 +115,7 @@ The following eight sources are enabled in the manifest catalogue but still have
 
 - **AniLab** — requires Kyoto Player official-client request signing.
 - **AnimePahe** — depends on Cloudflare/session handling and native HLS/Kwik extractors.
-- **AnimeSogo** and **AnimeSuge** — depend on shared AnikotoTheme source not included in the uploaded source snapshot.
+- **AnimeSogo** — depends on shared AnikotoTheme extraction behavior and its Sogo-specific VRF; the required shared implementation and native playlist proxy are not yet fully ported.
 - **AniSnatch** — dynamic site-config request/response cipher and gzip binary framing are not yet ported and tested.
 - **AniWave** — depends on a VRF/extractor chain and native HLS proxy.
 - **AV1Encodes** — current flow includes verification/ad-check dependencies and native extractors.
