@@ -48,13 +48,14 @@ The JS anime providers are still being brought to behavior parity with their ori
 
 ## Current anime conversion scope
 
-The anime catalogue contains 27 provider entries. Eighteen are enabled JavaScript ports; nine remain explicitly disabled until their native-only or security-sensitive dependencies have a supported RAW host integration.
+The anime catalogue contains 27 provider entries, and all 27 are enabled in the manifest as requested. Nineteen currently have non-placeholder QuickJS stream implementations at different parity stages; eight entries are catalogue-enabled but their JavaScript entrypoints still fail closed until the missing implementation or required RAW-native host capability is completed. Catalogue enablement does not imply playback readiness.
 
 | Provider | Implemented in QuickJS | Known host/runtime boundary |
 |---|---|---|
 | AllAnime | AniList GraphQL resolution, all Kotlin XOR source modes, AES-GCM episode decoding, and `/apivtwo/clock.json` MP4, HLS, adaptive iframe HLS/DASH and DASH audio/video rendition parsing; mapped GogoStream, Dood, OK.ru, Mp4Upload, Streamlare and StreamWish extraction | Requires QuickJS WebCrypto. Filemoon is intentionally unsupported because the available route requires an automated challenge/PoW flow; native browser-only routes remain outside the plugin runtime |
 | Anikage | AniList title mapping, browse/detail/episode/server/source requests, Koto/Rai routes, proxy token resolution, HLS variants and subtitles | Hosts requiring the original Android loopback HLS relay are omitted |
 | Anikoto | Kotlin-compatible VRF episode-list signing, mirror/title matching, server and mapper fallback, MegaPlay AES-CBC source decryption, 90-second HMAC-SHA256 CDN token generation, ASS-first subtitle selection and intro/outro metadata | Browser verification/challenge-dependent routes remain unsupported; real endpoint and device playback verification are still outstanding |
+| AnimeSuge | Kotlin-compatible RC4 → Base64URL → cyclic byte-shift → Base64URL → ROT13 VRF, exact-title search, `data-ids` episode lookup, server API lookup and direct HLS/MegaPlay paths | Shared AnikotoTheme extractor coverage, native playlist/key proxy, full metadata behavior and Android/MPV playback remain incomplete |
 | AniLight | AniList-backed API lookup, episode matching, public MegaPlay embed, AES-CBC source parsing, HLS variants and subtitles | Non-MegaPlay routes relying on WebView/Turnstile require a host-provided browser capability; QuickJS does not emulate that browser |
 | Miruro | AniList episode matching, secure-pipe envelope and XOR/gzip response decoding, provider/subtype fallback, rotating proxy configuration, direct HLS relay URLs and source subtitle tracks | Uses ordinary HTTP requests and fails closed on WAF/Cloudflare denial. Android-only embed extractors and local HLS relay are not emulated |
 | AniChan | AniList ID → episodes/servers API, direct HLS/MP4 and subtitle tracks | Non-direct embed resolvers are omitted |
@@ -108,9 +109,9 @@ Treat provider code and returned URLs as untrusted. Enforce timeouts, cancellati
 Original Kotlin source is retained under its own upstream attribution and Apache-2.0 terms; see `THIRD_PARTY_NOTICES.md` and `licenses/`.
 
 
-## Pending host integrations (disabled in the manifest)
+## Pending implementations (catalogue-enabled, resolver fail-closed)
 
-The following nine sources are preserved in the Kotlin source tree but are not presented as enabled QuickJS providers:
+The following eight sources are enabled in the manifest catalogue but still have placeholder JavaScript entrypoints that return no streams. Their Kotlin originals are retained as references until a legitimate QuickJS or RAW-native implementation is complete:
 
 - **AniLab** — requires Kyoto Player official-client request signing.
 - **AnimePahe** — depends on Cloudflare/session handling and native HLS/Kwik extractors.
@@ -121,4 +122,4 @@ The following nine sources are preserved in the Kotlin source tree but are not p
 - **ReAnime** — depends on the local FlixProxyServer.
 - **Senshi** — depends on AES-GCM playlist handling and a native segment/key proxy.
 
-These entries have enabled=false and fail closed. They are not fake or incomplete stream resolvers masquerading as working providers.
+These entries currently have enabled=true for catalogue visibility, but their `getStreams` functions fail closed. They must not be described as playable until provider-specific tests and device validation pass.
