@@ -48,7 +48,7 @@ The JS anime providers are still being brought to behavior parity with their ori
 
 ## Current anime conversion scope
 
-The anime catalogue contains 27 provider entries, and all 27 are enabled in the manifest as requested. Nineteen currently have non-placeholder QuickJS stream implementations at different parity stages; eight entries are catalogue-enabled but their JavaScript entrypoints still fail closed until the missing implementation or required RAW-native host capability is completed. Catalogue enablement does not imply playback readiness.
+The anime catalogue contains 27 provider entries, and all 27 are enabled in the manifest as requested. Twenty currently have non-placeholder QuickJS stream implementations at different parity stages; seven entries are catalogue-enabled but their JavaScript entrypoints still fail closed until the missing implementation or required RAW-native host capability is completed. Catalogue enablement does not imply playback readiness.
 
 | Provider | Implemented in QuickJS | Known host/runtime boundary |
 |---|---|---|
