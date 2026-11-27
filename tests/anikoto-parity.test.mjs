@@ -166,7 +166,7 @@ test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS 
   const episodeCall = providerCalls.find((call) => call.url.includes("/ajax/episode/list/"));
   assert.ok(episodeCall, JSON.stringify({ calls: providerCalls.map((call) => call.url), logs: providerLogs }, null, 2));
   const episodeUrl = new URL(episodeCall.url);
-  assert.equal(episodeUrl.searchParams.get("vrf"), "ZI3sgFvDQ07%2Fotc%3D");
+  assert.equal(episodeUrl.searchParams.get("vrf"), "ZI3sgFvDQ07/otc=");
   assert.equal(episodeCall.init.headers.Referer, "https://anikototv.bz/watch/test-anime");
 
   const sourcesCall = providerCalls.find((call) => call.url.includes("/stream/getSources?"));
