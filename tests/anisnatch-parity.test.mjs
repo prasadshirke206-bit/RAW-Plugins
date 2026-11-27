@@ -151,14 +151,14 @@ test("AniSnatch decrypts a marker + XOR + gzip API response and resolves the exa
 
     if (url === "https://anisnatch.top/video/fixture-video-id") {
       return response(
-        'streamURL = "https://player.example/embed/fixture"; ' +
-        'subtitles: [{"file":"https://subs.example/en.vtt","label":"English"}];',
+        'streamURL = "https://player.example/embed/fixture";',
         { url }
       );
     }
     if (url === "https://player.example/embed/fixture") {
       return response(
-        'srcs: [{"url":"https://cdn.example/master.m3u8","label":"1080p","type":"hls"}];',
+        'srcs: [{"url":"https://cdn.example/master.m3u8","label":"1080p","type":"hls"}]; ' +
+        'subtitles: [{"file":"https://subs.example/en.vtt","label":"English"}];',
         { url }
       );
     }
