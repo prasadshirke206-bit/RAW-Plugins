@@ -735,8 +735,8 @@
     {
       "id": "animesogo",
       "name": "AnimeSogo",
-      "description": "Disabled: Kotlin source delegates to the shared AnikotoTheme runtime, which is not included in this repository snapshot; port is pending the exact shared implementation.",
-      "version": "1.0.0",
+      "description": "QuickJS stream port implements the Kotlin AnikotoRC4.encodeAnimeSogoVrf sequence, exact AniList title matching, Sogo data-ids episode lookup, Sogo server selectors, and visible direct HLS/MP4/MegaPlay extraction. Native playlist/key proxy and full shared AnikotoTheme extractor/device parity remain incomplete.",
+      "version": "1.1.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
