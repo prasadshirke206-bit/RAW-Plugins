@@ -69,7 +69,9 @@ test("exactly 27 anime providers are registered with explicit enablement", () =>
   assert.deepEqual(anime.map((provider) => provider.id).sort(), animeIds.slice().sort());
   for (const provider of anime) {
     assert.deepEqual(provider.supportedTypes, ["anime"]);
-    assert.equal(provider.enabled, activeAnimeIds.includes(provider.id), provider.id);
+    // All registered anime providers are enabled in the catalogue by user decision.
+    // Pending implementations remain fail-closed until their QuickJS ports are complete.
+    assert.equal(provider.enabled, true, provider.id);
     assert.ok(provider.filename.startsWith("providers/anime/"));
     assert.ok(provider.filename.endsWith(".js"));
   }
