@@ -56,6 +56,17 @@ function koRc4(input, key) {
   }
   return out;
 }
+function koStandardBase64(bytes) {
+  var binary = "";
+  for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i] & 255);
+  return btoa(binary);
+}
+function koAnikotoVrf(input) {
+  // AnikotoTheme's default getVrf uses AnikotoRC4.encodeVrf:
+  // RC4("simple-hash", animeId) -> standard Base64 -> URL encoding.
+  var encrypted = koRc4(koUtf8(String(input)), koUtf8("simple-hash"));
+  return encodeURIComponent(koStandardBase64(encrypted));
+}
 function koVrfEncrypt(input) {
   var order = [
     ["exchange", ["AP6GeR8H0lwUz1", "UAz8Gwl10P6ReH"]],
@@ -262,7 +273,7 @@ async function koResolveEmbed(embed, label, lang, siteBase) {
   } catch (_) { return []; }
 }
 async function koTrySearch(base, title) {
-  var url = base + "/filter?keyword=" + encodeURIComponent(title) + "&page=1&vrf=" + koVrfEncrypt(title);
+  var url = base + "/filter?keyword=" + encodeURIComponent(title) + "&page=1";
   var html = await (await koFetch(url, { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": base + "/" }) }, 6000)).text();
   var anchors = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [], matches = [];
   for (var i = 0; i < anchors.length; i++) { var tag = anchors[i].match(/^<a\b[^>]*>/i), href = tag ? koAttr(tag[0], "href") : "", text = koText(anchors[i]); if (href && /\/watch\//i.test(href) && koExactTitle(text, { titles: [title] })) matches.push(koAbs(base, href).split("?")[0]); }
@@ -307,7 +318,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var detailHtml = await (await koFetch(animeUrl, { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": baseUsed + "/" }) }, 10000)).text();
     var siteId = (detailHtml.match(/data-id=["']([^"']+)["']/i) || detailHtml.match(/data-tip=["']([^"']+)["']/i) || [,""])[1];
     if (!siteId) { console.log("[Anikoto] matched page contains no media data-id"); return []; }
-    var epResponse = await koJson(baseUsed + "/ajax/episode/list/" + encodeURIComponent(siteId) + "?vrf=" + koVrfEncrypt(siteId), {
+    var epResponse = await koJson(baseUsed + "/ajax/episode/list/" + encodeURIComponent(siteId) + "?vrf=" + koAnikotoVrf(siteId), {
       headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": animeUrl, "X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*; q=0.01" })
     }, 10000);
     var epHtml = epResponse && epResponse.result || "", tags = epHtml.match(/<a\b[^>]*data-num=["'][^"']+["'][^>]*>/gi) || [], epTag = null;
@@ -381,4 +392,4 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
   } catch (e) { console.log("[Anikoto] " + String(e && e.message || e)); return []; }
 }
 if (typeof globalThis !== "undefined") globalThis.getStreams = getStreams;
-if (typeof module !== "undefined" && module.exports) module.exports = { getStreams: getStreams };
+if (typeof module !== "undefined" && module.exports) module.exports = { getStreams: getStreams, anikotoVrf: koAnikotoVrf, sogoVrf: koVrfEncrypt, searchAnime: koTrySearch };

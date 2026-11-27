@@ -361,8 +361,8 @@
     {
       "id": "anikoto",
       "name": "Anikoto",
-      "description": "AniList-mapped Anikoto multisource provider with Kotlin VRF episode requests, mirror search, server/mapper fallback, MegaPlay AES-CBC source parsing, 90-second HMAC-SHA256 CDN tokens, ASS-first subtitles and intro/outro metadata.",
-      "version": "1.0.3",
+      "description": "AniList-mapped Anikoto multisource provider with the shared AnikotoTheme simple-hash RC4/Base64 episode VRF, plain filter search, mirror matching, server/mapper fallback, MegaPlay AES-CBC source parsing, 90-second HMAC-SHA256 CDN tokens, ASS-first subtitles and intro/outro metadata.",
+      "version": "1.0.4",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
