@@ -69,7 +69,9 @@ test("exactly 27 anime providers are registered with explicit enablement", () =>
   assert.deepEqual(anime.map((provider) => provider.id).sort(), animeIds.slice().sort());
   for (const provider of anime) {
     assert.deepEqual(provider.supportedTypes, ["anime"]);
-    assert.equal(provider.enabled, activeAnimeIds.includes(provider.id), provider.id);
+    // All registered anime providers are enabled in the catalogue by user decision.
+    // Pending implementations remain fail-closed until their QuickJS ports are complete.
+    assert.equal(provider.enabled, true, provider.id);
     assert.ok(provider.filename.startsWith("providers/anime/"));
     assert.ok(provider.filename.endsWith(".js"));
   }
@@ -81,9 +83,13 @@ test("anime QuickJS scripts parse and expose a fail-closed getStreams entrypoint
     const source = fs.readFileSync(filename, "utf8");
     assert.match(source, /async function getStreams\s*\(\s*anilistId\s*,\s*mediaType\s*,\s*season\s*,\s*episode/);
     assert.match(source, /globalThis\.getStreams\s*=\s*getStreams/);
-    if (provider.enabled) {
+    if (activeAnimeIds.includes(provider.id)) {
       assert.match(source, /anilistId/);
       assert.match(source, /episodeNumber/);
+    } else {
+      // Catalogue-enabled does not mean extraction is implemented. Until its
+      // provider-specific port lands, the placeholder must fail closed.
+      assert.match(source, /return\s*\[\]\s*;/, provider.id);
     }
     new vm.Script(source, { filename });
 
