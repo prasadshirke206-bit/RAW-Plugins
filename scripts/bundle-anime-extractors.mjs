@@ -8,7 +8,11 @@ const synchronyPath = path.join(root, "libraries/synchrony/src/main/assets/synch
 const targets = [
   "providers/anime/animostream.js",
   "providers/anime/animesalt.js",
-  "providers/anime/allanime.js"
+  "providers/anime/allanime.js",
+  "providers/anime/animotvslash.js",
+  "providers/anime/anineko.js",
+  "providers/anime/animesaga.js",
+  "providers/anime/anitusk.js"
 ];
 const synchronyTargets = new Set([
   "providers/anime/animostream.js",

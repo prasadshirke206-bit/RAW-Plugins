@@ -238,3 +238,119 @@ test("Streamlare direct sources POST the file API and use the final redirect URL
   assert.equal(candidates[0].quality, "1080p");
   assert.equal(calls[1].init.method, "POST");
 });
+
+
+test("VidHide follows the Kotlin packed-player extraction and keeps caption tracks", async () => {
+  const calls = [];
+  const { extractors } = loadExtractors(async (url, init = {}) => {
+    const value = String(url);
+    calls.push({ url: value, init });
+    if (value === "https://vidhide.example/e/fixture") {
+      const unpacked = 'var sources = ["https://media.example/vidhide/master.m3u8"]; var tracks = [{file:"https://media.example/subs/en.vtt",kind:"captions",label:"English"}];';
+      const packed = "<script>eval(function(p,a,c,k,e,d){return p;}('" + unpacked +
+        "',10,1,''.split('|'),0,{}))</script>";
+      return response(packed, { url: value });
+    }
+    if (value === "https://media.example/vidhide/master.m3u8") {
+      return response("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080\n1080/index.m3u8");
+    }
+    throw new Error("Unexpected VidHide request " + value);
+  });
+
+  const diagnostics = [];
+  const settings = options("anineko");
+  settings.log = (message) => diagnostics.push(message);
+  const candidates = await extractors.vidhide("https://vidhide.example/e/fixture", settings);
+  assert.equal(candidates.length, 1, diagnostics.join("\\n") + " calls=" + JSON.stringify(calls));
+  assert.equal(candidates[0].url, "https://media.example/vidhide/1080/index.m3u8");
+  assert.equal(candidates[0].quality, "1080p");
+  assert.equal(candidates[0].type, "m3u8");
+  assert.equal(candidates[0].provider, "anineko");
+  assert.equal(candidates[0].anilistId, "16498");
+  assert.equal(candidates[0].episodeNumber, 3);
+  assert.ok(candidates[0].subtitles.some((track) =>
+    track.url === "https://media.example/subs/en.vtt" && track.lang === "English"
+  ));
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].init.headers.Referer, "https://vidhide.example/e/fixture");
+  assert.equal(candidates[0].headers.Referer, "https://vidhide.example/e/fixture");
+});
+
+test("Vidara follows the Kotlin Android API contract and parses HLS variants", async () => {
+  const calls = [];
+  const { extractors } = loadExtractors(async (url, init = {}) => {
+    const value = String(url);
+    calls.push({ url: value, init });
+    if (value === "https://vidara.to/api/stream") {
+      assert.equal(init.method, "POST");
+      assert.deepEqual(JSON.parse(init.body), { filecode: "abc123", device: "android" });
+      assert.equal(init.headers.Origin, "https://vidara.to");
+      assert.equal(init.headers.Referer, "https://vidara.to/");
+      return response({ streaming_url: "https://media.example/vidara/master.m3u8" });
+    }
+    if (value === "https://media.example/vidara/master.m3u8") {
+      return response("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1800000,RESOLUTION=1280x720\n720/index.m3u8");
+    }
+    throw new Error("Unexpected Vidara request " + value);
+  });
+
+  const candidates = await extractors.vidara("https://vidara.to/e/abc123", options("animotvslash"));
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].url, "https://media.example/vidara/720/index.m3u8");
+  assert.equal(candidates[0].quality, "720p");
+  assert.equal(candidates[0].provider, "animotvslash");
+  assert.equal(candidates[0].anilistId, "16498");
+  assert.equal(candidates[0].episodeNumber, 3);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].init.headers.Referer, "https://vidara.to/");
+  assert.equal(calls[1].init.headers.Referer, "https://vidara.to/e/abc123");
+  assert.equal(candidates[0].headers.Referer, "https://vidara.to/e/abc123");
+});
+
+test("Vidara upns.pro reverses the hex JSON response and preserves Kotlin fragment IDs", async () => {
+  const calls = [];
+  const { extractors } = loadExtractors(async (url, init = {}) => {
+    const value = String(url);
+    calls.push({ url: value, init });
+    if (value === "https://upns.pro/api/v1/video?id=vid-456&token=keep") {
+      const payload = JSON.stringify({ file: "https://media.example/upns/master.m3u8" });
+      const encoded = payload.split("").reverse().map((ch) =>
+        ch.charCodeAt(0).toString(16).padStart(2, "0")
+      ).join("");
+      return response(encoded, { url: value });
+    }
+    if (value === "https://media.example/upns/master.m3u8") {
+      return response("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2400000,RESOLUTION=1920x1080\n1080/index.m3u8");
+    }
+    throw new Error("Unexpected UPNS request " + value);
+  });
+
+  const originalUrl = "https://upns.pro/e/ignored#vid-456&token=keep";
+  const candidates = await extractors.vidara(originalUrl, options("animesaga"));
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].quality, "1080p");
+  assert.equal(candidates[0].url, "https://media.example/upns/1080/index.m3u8");
+  assert.equal(calls[0].url, "https://upns.pro/api/v1/video?id=vid-456&token=keep");
+  assert.equal(calls[0].init.headers.Referer, "https://upns.pro/");
+  assert.equal(calls[1].init.headers.Referer, originalUrl);
+  assert.equal(candidates[0].headers.Referer, originalUrl);
+});
+
+test("shared VidHide and Vidara extractors reject incomplete anime identity without networking", async () => {
+  let requests = 0;
+  const { extractors } = loadExtractors(async () => {
+    requests += 1;
+    throw new Error("Network must not be called");
+  });
+  assert.deepEqual(Array.from(await extractors.vidhide("https://vidhide.example/e/id", {
+    provider: "anineko",
+    anilistId: "0",
+    episodeNumber: 1
+  })), []);
+  assert.deepEqual(Array.from(await extractors.vidara("https://vidara.to/e/id", {
+    provider: "animotvslash",
+    anilistId: "16498",
+    episodeNumber: 0
+  })), []);
+  assert.equal(requests, 0);
+});

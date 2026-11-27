@@ -70,6 +70,39 @@ The repository contains **27 original anime provider classes** and **76 Kotlin f
 
 Do not mass-delete every `.kt` file in the repository. The root also contains shared extractor/library Kotlin sources used by the original extension sources. Remove anime Kotlin source only after its corresponding parity gate passes, and do not delete unrelated movie/TV or shared source code as part of an anime-only migration.
 
+## Shared QuickJS extractor coverage update
+
+The shared runtime at providers/anime/shared/extractors.js now contains reusable implementations for StreamWish, EmbedSeek, GogoStream, OK.ru, Mp4Upload, Streamlare, Abyss, Dood, StreamTape, VidMoly, VidHide and Vidara. These implementations are JavaScript runtime ports; the Kotlin source modules under extractors/ remain native reference implementations and are not imported directly by QuickJS.
+
+| Enabled provider | Shared hoster extractors routed from its JS provider |
+|---|---|
+| AllAnime | GogoStream, Dood, OK.ru, Mp4Upload, Streamlare, StreamWish |
+| AniMoStream | StreamWish, EmbedSeek, StreamTape, Dood, VidMoly, Abyss |
+| AnimeSalt | VidMoly, Abyss, Dood, StreamTape |
+| AniMoTVSlash | StreamWish, VidHide, Vidara, Abyss |
+| AniNeko | VidHide, Dood |
+| AnimeSaga | VidHide, Dood |
+| Anitummy | VidHide, Dood, StreamWish, Vidara |
+
+The shared source is now generated into standalone bundles for AllAnime, AniMoStream, AnimeSalt, AniMoTVSlash, AniNeko, AnimeSaga and Anitummy. The bundle generator and synchronization test both enumerate the same target files so a helper change cannot silently leave one of those bundles stale. Providers not listed here currently use direct/API routes or still have provider-specific hoster work outstanding; this does not imply that every provider requires the same hosters.
+
+### Native libraries and host-only capabilities
+
+| Native module/source | Role | QuickJS/RAW decision |
+|---|---|---|
+| libraries/synchrony | StreamWish script deobfuscation | The original asset is JavaScript and is bundled for the providers that need it |
+| libraries/unpacker | P.A.C.K.E.R. and related player-script unpacking | Shared JS has a compatible unpacker subset; retain Kotlin until every consumer has parity tests |
+| libraries/cryptoaes | AES helpers used by native extensions | Port only the exact provider-required algorithm to JS/WebCrypto with fixtures; do not assume API compatibility |
+| libraries/m3u8server | Local playlist, segment and key proxy/rewrite integration | Requires a RAW-native Android bridge; ordinary QuickJS fetch cannot replace a loopback media proxy |
+| extractors/universal-extractor | WebView-based browser/player execution and media URL detection | Requires the documented Android WebView bridge; do not fake it in JS |
+| extractors/dood-extractor, vidhide-extractor, vidara-extractor, streamwish-extractor, streamtape-extractor, vidmoly-extractor | Reusable host-specific extraction | Reuse the JS implementation where routed; native versions remain parity references |
+
+The new VidHide port follows the visible packed-player script, HLS URL and caption-track path. The Vidara port follows its public /api/stream JSON POST and the distinct upns.pro hex/reverse/JSON response path. Both emit candidates only with the caller-supplied AniList ID and episode number and parse qualities from the returned HLS playlist. Their fixture tests validate the request shapes and candidate identity; they do not prove that current third-party endpoints are live or that MPV playback succeeds on a device.
+
+The shared HLS parser discovers observed variants and subtitle references, but it is not a general replacement for the native local proxy. Providers whose original Kotlin implementations rewrite relative playlist, segment, or encryption-key URLs must stay marked as having native playback gaps until RAW implements and tests that bridge. UniversalExtractor/WebView flows, browser-mediated user verification and encrypted-key proxy paths are similarly distinct from ordinary direct hoster extraction.
+
+Do not enable a provider merely because a shared extractor now exists. Its provider must still map the exact AniList title and episode, return real observed candidates, preserve headers/tracks, pass regression fixtures and undergo real Android/MPV playback validation.
+
 ## Required next implementation work
 
 1. Port the missing direct-host extractor branches where they can be implemented and tested safely in QuickJS.

@@ -243,7 +243,7 @@
         "tv"
       ],
       "filename": "providers/movie-tv/net77.js",
-      "enabled": true,
+      "enabled": false,
       "hasSettings": false,
       "formats": [
         "m3u8"
@@ -319,7 +319,7 @@
       "id": "allanime",
       "name": "AllAnime",
       "description": "AniList-mapped AllAnime GraphQL provider with AES-GCM episode decoding, Kotlin XOR source decoding, internal MP4/HLS/iframe/DASH parsing, and GogoStream, Dood, OK.ru, Mp4Upload, Streamlare and StreamWish extractors. Filemoon challenge flow remains intentionally unsupported.",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -533,7 +533,7 @@
       "id": "animesaga",
       "name": "AnimeSaga",
       "description": "AniList GraphQL episode mapping, source response XOR decoding, and direct HLS/MP4 stream extraction.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -555,7 +555,7 @@
       "id": "anitusk",
       "name": "Anitummy",
       "description": "AniList-mapped Fast MegaPlay, VidNest direct-media, and Kiwi/Net/Ally public sub/dub route resolver with AES-CBC MegaPlay decryption, direct HLS/MP4 and observed captions. Protected hoster extraction and Cloudflare-only routes remain unsupported.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -575,7 +575,7 @@
       "id": "animesalt",
       "name": "AnimeSalt",
       "description": "AniList title-mapped AnimeSalt Wordpress episode/server extraction with public MegaPlay AES-CBC, shared Abyss AES-CTR HLS/MP4/Sora extraction, FirePlayer and observed subtitles. Browser-only UniversalExtractor routes remain native-host work.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -617,7 +617,7 @@
       "id": "animotvslash",
       "name": "AniMoTVSlash",
       "description": "AniList title-mapped AniMoTVSlash episode and mirror-page extraction; returns only direct HLS/MP4 sources.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -639,7 +639,7 @@
       "id": "anineko",
       "name": "AniNeko",
       "description": "AniList title-mapped AniNeko server-video extraction; only direct HLS/MP4 media sources are returned.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
@@ -683,7 +683,7 @@
       "id": "animostream",
       "name": "AniMoStream",
       "description": "AniList title-mapped Animostream Blogger post/season data parsing with shared Abyss, Dood, StreamTape, VidMoly, EmbedSeek and StreamWish extraction plus direct HLS/MP4 sources. UniversalExtractor routes remain native-host work.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"

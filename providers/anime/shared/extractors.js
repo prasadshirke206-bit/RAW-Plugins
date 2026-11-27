@@ -1315,6 +1315,140 @@
     }
   }
 
+
+  function vidhideTracks(script, baseUrl) {
+    var match = String(script || "").match(/tracks\s*[:=]\s*\[([\s\S]*?)\]/i);
+    if (!match) return [];
+    var blocks = match[1].match(/\{[^{}]*\}/g) || [];
+    var tracks = [];
+    for (var i = 0; i < blocks.length; i++) {
+      var block = blocks[i];
+      var kind = (block.match(/kind\s*:\s*["']([^"']+)["']/i) || [, ""])[1];
+      if (String(kind).toLowerCase() !== "captions") continue;
+      var file = (block.match(/file\s*:\s*["']([^"']+)["']/i) || [, ""])[1];
+      var label = (block.match(/label\s*:\s*["']([^"']+)["']/i) || [, ""])[1] || "Subtitle";
+      if (!file) continue;
+      var fixed = absolute(file, baseUrl);
+      if (fixed && /^https:\/\//i.test(fixed) && !tracks.some(function (item) { return item.url === fixed; })) {
+        tracks.push({ url: fixed, lang: label });
+      }
+    }
+    return tracks;
+  }
+
+  async function vidhide(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var headers = options.pageHeaders || {};
+      var response = await request(url, headers, 12000);
+      var pageUrl = response.url || url;
+      var html = await response.text();
+      var scripts = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+      var scriptTag = scripts.find(function (tag) { return /eval\(function\(p,a,c,k,e,d\)/i.test(tag); }) || "";
+      if (!scriptTag) return [];
+      var unpacked = packerUnpack(scriptTag);
+      var script = unpacked.length ? unpacked.join("\n") : scriptTag;
+      var urls = [], matches = script.match(/["']((?:https?:\/)?\/[^"'<>]*m3u8[^"'<>]*)["']/gi) || [];
+      for (var i = 0; i < matches.length; i++) {
+        var value = (matches[i].match(/["']((?:https?:\/)?\/[^"'<>]*m3u8[^"'<>]*)["']/i) || [, ""])[1];
+        var fixed = absolute(value, pageUrl);
+        if (fixed && /^https:\/\//i.test(fixed) && urls.indexOf(fixed) < 0) urls.push(fixed);
+      }
+      if (!urls.length) return [];
+      var subtitles = vidhideTracks(script, pageUrl);
+      var streamHeaders = Object.assign({}, headers, { Referer: String(url) });
+      var out = [];
+      for (var j = 0; j < urls.length; j++) {
+        out = out.concat(await hlsCandidates(
+          urls[j],
+          options,
+          (options.labelPrefix ? String(options.labelPrefix) + " " : "") + "VidHide:",
+          streamHeaders,
+          subtitles
+        ));
+      }
+      return out;
+    } catch (error) {
+      if (options.log) options.log("[VidHide] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
+  function vidaraFileCode(url) {
+    try {
+      var input = new URL(String(url || ""));
+      if (input.hash && input.hash.length > 1) return input.hash.substring(1);
+      var parts = input.pathname.split("/").filter(Boolean);
+      var eIndex = parts.lastIndexOf("e");
+      if (eIndex >= 0 && parts[eIndex + 1]) return parts[eIndex + 1];
+      return parts.length ? parts[parts.length - 1] : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function decodeVidaraHex(value) {
+    var hex = String(value || "").trim();
+    if (!hex || !/^[0-9a-f]+$/i.test(hex)) return "";
+    var out = "";
+    for (var i = 0; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.substring(i, i + 2), 16));
+    return out.split("").reverse().join("");
+  }
+
+  async function vidara(url, options) {
+    options = options || {};
+    if (!validRequest(options) || !/^https?:\/\//i.test(String(url || ""))) return [];
+    try {
+      var input = new URL(String(url));
+      var host = input.host;
+      var filecode = vidaraFileCode(url);
+      if (!filecode) return [];
+      var base = input.protocol + "//" + host;
+      var userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+      var headers = {
+        "User-Agent": userAgent,
+        "Referer": base + "/"
+      };
+      var streamingUrl = "";
+      if (/^upns\.pro$/i.test(host) || /upns\.pro$/i.test(host)) {
+        var apiResponse = await request(base + "/api/v1/video?id=" + filecode, headers, 12000);
+        var decoded = decodeVidaraHex(await apiResponse.text());
+        if (!decoded) return [];
+        var data;
+        try { data = JSON.parse(decoded); } catch (_) { data = null; }
+        streamingUrl = data && (data.file || data.streaming_url) || "";
+      } else {
+        headers.Origin = base;
+        var api = await request(base + "/api/stream", headers, 12000, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filecode: filecode, device: "android" })
+        });
+        var payload;
+        try { payload = await api.json(); } catch (_) { payload = null; }
+        streamingUrl = payload && payload.streaming_url || "";
+      }
+      if (!streamingUrl || !/^https:\/\//i.test(streamingUrl)) return [];
+      // Kotlin's PlaylistUtils receives the original embed URL as its Referer.
+      // The API request uses the host root; the media/playlist request uses the embed.
+      var streamHeaders = {
+        "User-Agent": userAgent,
+        Referer: String(url)
+      };
+      return await hlsCandidates(
+        streamingUrl,
+        options,
+        (options.labelPrefix ? String(options.labelPrefix) + " " : "") + "Vidara:",
+        streamHeaders,
+        options.subtitles || []
+      );
+    } catch (error) {
+      if (options.log) options.log("[Vidara] " + String(error && error.message || error));
+      return [];
+    }
+  }
+
   root.RAWAnimeExtractors = {
     streamwish: streamwish,
     embedseek: embedseek,
@@ -1327,6 +1461,8 @@
     dood: dood,
     streamtape: streamtape,
     vidmoly: vidmoly,
+    vidhide: vidhide,
+    vidara: vidara,
     hlsCandidates: hlsCandidates
   };
 })(globalThis);
