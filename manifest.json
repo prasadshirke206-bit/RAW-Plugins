@@ -765,8 +765,8 @@
     {
       "id": "anisnatch",
       "name": "AniSnatch",
-      "description": "Disabled: uses a site-config-derived custom request/response cipher and gzip binary framing; pending a fully tested QuickJS implementation.",
-      "version": "1.0.0",
+      "description": "QuickJS port implements AniSnatch's dynamic site-config SMC request encoding, marker/XOR/gzip API response decoding, AniList title matching, exact episode/server lookup and visible direct HLS/MP4 paths. Native playlist/key rewriting and full extractor/device parity remain incomplete.",
+      "version": "1.1.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"

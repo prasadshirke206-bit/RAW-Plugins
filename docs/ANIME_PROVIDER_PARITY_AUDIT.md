@@ -40,6 +40,7 @@ The branch CI run for commit `5401673698523b5714ce80c342274d3d0f3d51aa` passes `
 | AnimeSuge | PORTED_WITH_GAPS | JS now ports the Kotlin RC4 → Base64URL → cyclic byte-shift → Base64URL → ROT13 VRF, exact-title search, site ID and `data-ids` episode selection, server lookup, and observed direct HLS/MegaPlay resolution with mocked fixtures. The full AnikotoTheme extractor set, native playlist/key proxy, metadata preferences and real-device playback are not yet verified. |
 | AnimeHeaven | CLOSE_PENDING_DEVICE_TEST | The JS port reproduces the gate-key cookie request and the three direct-media discovery fallbacks (video source, download link, token reconstruction), while excluding the decoy host. It still needs comparison fixtures for cookie isolation, URL ordering, and request headers, plus device validation. |
 | Ani.pm | PORTED_WITH_GAPS | JS reproduces playback bootstrap → Settlar session → embed session, key-proof header, subtitle extraction, and HLS parsing. Kotlin additionally sends videos and subtitle tracks through its local proxy; encrypted-key/playlist behavior must be proven equivalent or implemented natively. |
+| AniSnatch | PORTED_WITH_GAPS | JS now loads the live site crypto config, ports Kotlin's SMC request encoding, shuffled 25-character chunks, token/authenticator construction, marker/XOR/gzip response decoder, exact AniList-title mapping, episode/server APIs, and visible direct HLS/MP4/MegaPlay source extraction with mocked fixtures. Kotlin's PlaylistUtils/M3u8Integration segment/key rewriting, the full extractor fallback set, server preferences and real-device playback remain incomplete. |
 | AnimeSaga | PORTED_WITH_GAPS | JS preserves AniList mapping and encrypted response parsing, but Kotlin has Dood/VidHide extraction, multiple provider-specific embed branches, and a loopback proxy that rewrites playlist/segment URLs. Direct-only JS candidates do not replace those paths. |
 | Anitummy (Anitusk) | PORTED_WITH_GAPS | JS now attempts Fast/MegaPlay, VidNest direct-media discovery, and both sub/dub on Kiwi (AnimePahe), Net (AnimeDao), and Ally (AllManga) API routes. Direct HLS/MP4 and visible captions are emitted. Protected Dood/VidHide/vidnest extractor branches and native HLS integration are still not equivalent; Cloudflare/session-denied routes fail closed. |
 | AnimeSalt | PORTED_WITH_GAPS | JS handles episode/server-page parsing, public MegaPlay decryption, the Kotlin AS-CDN/FirePlayer POST → HLS flow, and shared Abyss AES-CTR plus VidMoly extraction (with mocked fixtures). Dood, StreamTape, Filemoon and Universal hoster paths plus local playlist rewriting remain incomplete; Universal needs the proposed Android WebView bridge. |
@@ -51,14 +52,13 @@ The branch CI run for commit `5401673698523b5714ce80c342274d3d0f3d51aa` passes `
 
 ## Disabled providers
 
-These eight entries remain catalogue-enabled by user decision but are still implementation-blocked. Their Kotlin source must remain available until each missing flow has a legitimate, tested QuickJS or RAW-native implementation.
+These seven entries remain catalogue-enabled by user decision but are still implementation-blocked. Their Kotlin source must remain available until each missing flow has a legitimate, tested QuickJS or RAW-native implementation.
 
 | Provider | Status | Blocking Kotlin behavior |
 |---|---|---|
 | AniLab | BLOCKED | Kyoto Player official-client request signing. Do not synthesize or impersonate the official signature. |
 | AnimePahe | BLOCKED | Cloudflare/session flow, native HLS server, Kwik extractor, and supporting session logic. |
 | AnimeSogo | BLOCKED | Inherits shared AnikotoTheme logic; the exact shared source is not present in this source snapshot. |
-| AniSnatch | BLOCKED | Dynamic site-config-derived request/response cipher and gzip framing are not yet ported with fixtures. |
 | AniWave | BLOCKED | VRF/extractor chain and native HLS proxy. |
 | AV1Encodes | BLOCKED | Site verification/ad-check flow and native extractor dependencies. |
 | ReAnime | BLOCKED | Native FlixProxyServer rewrites stream and key URLs. |
