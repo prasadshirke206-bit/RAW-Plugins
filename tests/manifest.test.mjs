@@ -83,9 +83,13 @@ test("anime QuickJS scripts parse and expose a fail-closed getStreams entrypoint
     const source = fs.readFileSync(filename, "utf8");
     assert.match(source, /async function getStreams\s*\(\s*anilistId\s*,\s*mediaType\s*,\s*season\s*,\s*episode/);
     assert.match(source, /globalThis\.getStreams\s*=\s*getStreams/);
-    if (provider.enabled) {
+    if (activeAnimeIds.includes(provider.id)) {
       assert.match(source, /anilistId/);
       assert.match(source, /episodeNumber/);
+    } else {
+      // Catalogue-enabled does not mean extraction is implemented. Until its
+      // provider-specific port lands, the placeholder must fail closed.
+      assert.match(source, /return\s*\[\]\s*;/, provider.id);
     }
     new vm.Script(source, { filename });
 
