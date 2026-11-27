@@ -69,6 +69,29 @@ async function encryptMegaFile(fileUrl) {
   return Buffer.from(new Uint8Array(encrypted)).toString("base64url");
 }
 
+test("Anikoto uses the default Kotlin simple-hash RC4/Base64 VRF, not AnimeSogo's override", () => {
+  const { context } = loadProvider(async () => response(""));
+  const api = context.module.exports;
+  assert.equal(api.anikotoVrf("12345"), "Jtar0UM%3D");
+  assert.equal(api.anikotoVrf("123"), "Jtar");
+  assert.equal(api.anikotoVrf("42"), "I9Y%3D");
+  assert.notEqual(api.anikotoVrf("12345"), api.sogoVrf("12345"));
+});
+
+test("Anikoto search uses the shared theme's plain filter URL without episode VRF", async () => {
+  let requestedUrl = "";
+  const { context } = loadProvider(async (url) => {
+    requestedUrl = String(url);
+    return response('<a href="/watch/fixture-anime">Fixture Anime</a>', { url: requestedUrl });
+  });
+  const found = await context.module.exports.searchAnime("https://anikototv.bz", "Fixture Anime");
+  assert.equal(found, "https://anikototv.bz/watch/fixture-anime");
+  const parsed = new URL(requestedUrl);
+  assert.equal(parsed.pathname, "/filter");
+  assert.equal(parsed.searchParams.get("keyword"), "Fixture Anime");
+  assert.equal(parsed.searchParams.get("page"), "1");
+  assert.equal(parsed.searchParams.get("vrf"), null);
+});
 test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS subtitle preference", async () => {
   const embedUrl = "https://megaplay.buzz/stream/s-2/media-abc/sub?s=fixture-session";
   const firstPathKey = "0123456789abcdef0123456789abcdef";
@@ -143,8 +166,7 @@ test("Anikoto matches Kotlin episode VRF, MegaPlay HMAC token, referers and ASS 
   const episodeCall = providerCalls.find((call) => call.url.includes("/ajax/episode/list/"));
   assert.ok(episodeCall, JSON.stringify({ calls: providerCalls.map((call) => call.url), logs: providerLogs }, null, 2));
   const episodeUrl = new URL(episodeCall.url);
-  assert.ok(episodeUrl.searchParams.get("vrf"));
-  assert.notEqual(episodeUrl.searchParams.get("vrf"), "");
+  assert.equal(episodeUrl.searchParams.get("vrf"), "ZI3sgFvDQ07%2Fotc%3D");
   assert.equal(episodeCall.init.headers.Referer, "https://anikototv.bz/watch/test-anime");
 
   const sourcesCall = providerCalls.find((call) => call.url.includes("/stream/getSources?"));
