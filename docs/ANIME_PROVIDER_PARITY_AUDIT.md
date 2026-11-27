@@ -1,6 +1,6 @@
 # Anime provider Kotlin → QuickJS parity audit
 
-**Audit baseline:** `main` at `7d3e77d0ac2edb64cab9425742e21b4ef13f751d`  
+**Audit baseline:** `main` at `16f87f7fabdb31332bb6fa1142cd61a373aad960`  
 **Scope:** stream-resolution behavior only. RAW owns AniList metadata and invokes `getStreams(anilistId, "anime", season, episode)`; provider browsing, detail pages, extension settings screens, and extension-specific catalogue UI are not required to be reproduced in a stream plugin.
 
 ## Migration gate
@@ -37,6 +37,7 @@ The branch CI run for commit `5401673698523b5714ce80c342274d3d0f3d51aa` passes `
 | AniChan | PORTED_WITH_GAPS | JS ports the AniList-ID → episode/server API flow and direct HLS/MP4/subtitle handling. Kotlin also resolves supported embed URLs through UniversalExtractor and uses PlaylistUtils/M3U8 integration; the embed path requires the proposed Android WebView bridge. |
 | AniKura | PORTED_WITH_GAPS | JS ports title mapping, episode lookup, stream API calls, and track parsing. Kotlin uses PlaylistUtils/M3U8 integration and has provider-side server/expiry preferences; the RAW port intentionally omits the extension's five-day demo gate, but playlist fallback behavior still needs parity fixtures. |
 | AniKuro | PORTED_WITH_GAPS | Both use the same 12 normalized source endpoints. The Kotlin extension exposes all hosters and applies preferred/excluded server and audio-type settings; JS currently probes sequentially and stops after the first provider produces candidates. This is an intentional automation adaptation only if RAW's resolver contract confirms it. |
+| AnimeSuge | PORTED_WITH_GAPS | JS now ports the Kotlin RC4 → Base64URL → cyclic byte-shift → Base64URL → ROT13 VRF, exact-title search, site ID and `data-ids` episode selection, server lookup, and observed direct HLS/MegaPlay resolution with mocked fixtures. The full AnikotoTheme extractor set, native playlist/key proxy, metadata preferences and real-device playback are not yet verified. |
 | AnimeHeaven | CLOSE_PENDING_DEVICE_TEST | The JS port reproduces the gate-key cookie request and the three direct-media discovery fallbacks (video source, download link, token reconstruction), while excluding the decoy host. It still needs comparison fixtures for cookie isolation, URL ordering, and request headers, plus device validation. |
 | Ani.pm | PORTED_WITH_GAPS | JS reproduces playback bootstrap → Settlar session → embed session, key-proof header, subtitle extraction, and HLS parsing. Kotlin additionally sends videos and subtitle tracks through its local proxy; encrypted-key/playlist behavior must be proven equivalent or implemented natively. |
 | AnimeSaga | PORTED_WITH_GAPS | JS preserves AniList mapping and encrypted response parsing, but Kotlin has Dood/VidHide extraction, multiple provider-specific embed branches, and a loopback proxy that rewrites playlist/segment URLs. Direct-only JS candidates do not replace those paths. |
@@ -50,14 +51,13 @@ The branch CI run for commit `5401673698523b5714ce80c342274d3d0f3d51aa` passes `
 
 ## Disabled providers
 
-These nine entries must remain disabled and their Kotlin source must remain available until the missing flow has a legitimate, tested QuickJS or RAW-native implementation.
+These eight entries remain catalogue-enabled by user decision but are still implementation-blocked. Their Kotlin source must remain available until each missing flow has a legitimate, tested QuickJS or RAW-native implementation.
 
 | Provider | Status | Blocking Kotlin behavior |
 |---|---|---|
 | AniLab | BLOCKED | Kyoto Player official-client request signing. Do not synthesize or impersonate the official signature. |
 | AnimePahe | BLOCKED | Cloudflare/session flow, native HLS server, Kwik extractor, and supporting session logic. |
 | AnimeSogo | BLOCKED | Inherits shared AnikotoTheme logic; the exact shared source is not present in this source snapshot. |
-| AnimeSuge | BLOCKED | Inherits shared AnikotoTheme and episode metadata logic; the exact shared source is not present in this source snapshot. |
 | AniSnatch | BLOCKED | Dynamic site-config-derived request/response cipher and gzip framing are not yet ported with fixtures. |
 | AniWave | BLOCKED | VRF/extractor chain and native HLS proxy. |
 | AV1Encodes | BLOCKED | Site verification/ad-check flow and native extractor dependencies. |

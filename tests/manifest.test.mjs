@@ -12,8 +12,8 @@ const existingMovieTvIds = [
   "bingr", "movy", "4khdhub", "hdhub4u", "bollyflix",
   "cinevood", "freekz", "net77", "uhdmovies", "vegamovies"
 ];
-const activeAnimeIds = ["allanime","anikage","anikoto","anilight","miruro","anichan","anikura","anikuro","animeheaven","anipm","animesaga","anitusk","animesalt","fouranimo","animotvslash","anineko","animestream","animostream"];
-const pendingAnimeIds = ["anilab","animepahe","animesogo","animesuge","anisnatch","aniwave","av1encodes","reanime","senshi"];
+const activeAnimeIds = ["allanime","anikage","anikoto","anilight","miruro","anichan","anikura","anikuro","animeheaven","anipm","animesaga","anitusk","animesalt","fouranimo","animotvslash","anineko","animestream","animostream","animesuge"];
+const pendingAnimeIds = ["anilab","animepahe","animesogo","anisnatch","aniwave","av1encodes","reanime","senshi"];
 const animeIds = [...activeAnimeIds, ...pendingAnimeIds];
 
 test("manifest retains the existing QuickJS movie/TV contract", () => {
