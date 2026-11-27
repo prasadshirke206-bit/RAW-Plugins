@@ -365,7 +365,7 @@ async function nsResolveVideoPage(source, audio, server, id, episode) {
     }
   }
   if (!out.length) {
-    var direct = (targetHtml.match(/["'](https?:\/\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?)["']/i) || [,""])[1];
+    var direct = (targetHtml.match(/["'](https?:\/\/[^"'\s]+\.m3u8(?:\?[^"'\s]*)?)["']/i) || [,""])[1];
     if (direct) out.push.apply(out, await nsHlsCandidates(direct, audio + " - " + server, audio, headers, subtitles, id, episode));
   }
   return out;
@@ -389,7 +389,7 @@ async function nsResolveSource(source, audio, server, id, episode) {
       var playerUrl = nsText(nsBase64UrlDecode(parts[1]));
       var response = await nsFetch(playerUrl, { headers: { "User-Agent": NS_UA, "Referer": NS_BASE + "/" } }, 12000);
       var html = await response.text();
-      var m3u8 = (html.match(/["']?(https?:\/\/[^"'\\s]+\.m3u8[^"'\\s]*)["']?/i) || [,""])[1];
+      var m3u8 = (html.match(/["']?(https?:\/\/[^"'\s]+\.m3u8[^"'\s]*)["']?/i) || [,""])[1];
       if (!m3u8) return [];
       var origin = "";
       try { origin = new URL(playerUrl).origin; } catch (_) {}
@@ -589,7 +589,7 @@ function nsInflateRaw(data, startOffset) {
         if (copyDistance <= 0 || copyDistance > output.length) throw new Error("Invalid DEFLATE back-reference");
         for (var cp = 0; cp < copyLength; cp++) output.push(output[output.length - copyDistance]);
       }
-      if (output.length > 32 * 1024 * 1024) throw new Error("Miruro response exceeds decompression limit");
+      if (output.length > 32 * 1024 * 1024) throw new Error("AniSnatch response exceeds decompression limit");
     }
   }
   return { bytes: output, nextOffset: pos };
