@@ -269,6 +269,26 @@ async function koTrySearch(base, title) {
   matches = matches.filter(function (x, i) { return matches.indexOf(x) === i; });
   return matches.length === 1 ? matches[0] : "";
 }
+function koTypeGroups(html) {
+  var source = String(html || ""), groups = [], token = /<div\b[^>]*>|<\/div>/gi, match;
+  while ((match = token.exec(source)) !== null) {
+    if (!/^<div\b/i.test(match[0]) || !/\bclass\s*=\s*["'][^"']*\btype\b[^"']*["']/i.test(match[0])) continue;
+    var start = match.index, depth = 1, scan = /<div\b[^>]*>|<\/div>/gi;
+    scan.lastIndex = token.lastIndex;
+    var nested;
+    while (depth > 0 && (nested = scan.exec(source)) !== null) {
+      if (/^<\/div/i.test(nested[0])) depth--;
+      else depth++;
+    }
+    if (depth === 0) {
+      groups.push(source.slice(start, scan.lastIndex));
+      token.lastIndex = scan.lastIndex;
+    } else {
+      break;
+    }
+  }
+  return groups;
+}
 async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
   try {
     var context = Object.assign({}, koContext(), extraArgs || {});
@@ -318,7 +338,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     var serverResult = await koJson(baseUsed + "/ajax/server/list?servers=" + encodeURIComponent(ids), {
       headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": animeUrl, "X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*; q=0.01" })
     }, 10000);
-    var serverHtml = serverResult && serverResult.result || "", groups = serverHtml.match(/<div\b[^>]*class=["'][^"']*\btype\b[^"']*["'][^>]*>[\s\S]*?<\/div>/gi) || [], servers = [];
+    var serverHtml = serverResult && serverResult.result || "", groups = koTypeGroups(serverHtml), servers = [];
     for (var g = 0; g < groups.length; g++) {
       var gt = groups[g].match(/^<div\b[^>]*>/i), typeName = (gt && (koAttr(gt[0], "data-type") || koText(gt[0]))) || "Sub";
       typeName = /dub|a-dub/i.test(typeName) ? "dub" : "sub";
