@@ -750,8 +750,8 @@
     {
       "id": "animesuge",
       "name": "AnimeSuge",
-      "description": "Disabled: Kotlin source delegates to the shared AnikotoTheme runtime, which is not included in this repository snapshot; port is pending the exact shared implementation.",
-      "version": "1.0.0",
+      "description": "QuickJS stream port implements the AnimeSuge RC4/shift/ROT13 VRF, exact AniList title matching, episode lookup and direct HLS/MegaPlay source paths. Native playlist/key proxy and some AnikotoTheme extractor branches remain incomplete; Android playback verification is pending.",
+      "version": "1.1.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
