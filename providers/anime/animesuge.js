@@ -254,10 +254,10 @@ async function koResolveEmbed(embed, label, lang, siteBase) {
   } catch (_) { return []; }
 }
 async function koTrySearch(base, title) {
-  var url = base + "/filter?keyword=" + encodeURIComponent(title) + "&page=1&vrf=" + sugeVrf(title);
+  var url = base + "/filter?keyword=" + encodeURIComponent(title) + "&page=1";
   var html = await (await koFetch(url, { headers: Object.assign({}, ANIKOTO_HEADERS, { "Referer": base + "/" }) }, 6000)).text();
   var anchors = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [], matches = [];
-  for (var i = 0; i < anchors.length; i++) { var tag = anchors[i].match(/^<a\b[^>]*>/i), href = tag ? koAttr(tag[0], "href") : "", text = koText(anchors[i]); if (href && /\/watch\//i.test(href) && koExactTitle(text, { titles: [title] })) matches.push(koAbs(base, href).split("?")[0]); }
+  for (var i = 0; i < anchors.length; i++) { var tag = anchors[i].match(/^<a\b[^>]*>/i), href = tag ? koAttr(tag[0], "href") : "", text = koText(anchors[i]); if (href && /\/(?:watch|anime)\//i.test(href) && koExactTitle(text, { titles: [title] })) matches.push(koAbs(base, href).split("?")[0]); }
   matches = matches.filter(function (x, i) { return matches.indexOf(x) === i; });
   return matches.length === 1 ? matches[0] : "";
 }
