@@ -144,7 +144,7 @@ async function alMegaPlay(embedUrl, lang, label) {
   var audioBadge = lang === "dub" ? "[Dub]" : (tracks.length ? "[Soft Sub]" : "[Sub]");
   return await alHls(file, audioBadge, lang, embedHeaders, tracks);
 }
-async function alNativeWatchPlayer(watchUrl, lang, label, id, ep, providerId) {
+async function alNativeWatchPlayer(watchUrl, lang, label, id, ep, providerId, timeoutMs) {
   try {
     var host = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
     if (!host || typeof host.resolveAnimeEmbed !== "function") return [];
@@ -157,7 +157,7 @@ async function alNativeWatchPlayer(watchUrl, lang, label, id, ep, providerId) {
       embedUrl: watchUrl,
       pageUrl: ANILIGHT_SITE + "/",
       headers: ANILIGHT_HEADERS,
-      timeoutMs: 3500,
+      timeoutMs: Number(timeoutMs || 8000),
       maxPlayNudges: 5,
       playNudgeIntervalMs: 1500
     });
@@ -281,7 +281,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
       addProviders(episodeRoster.dub, "dub");
       var providerIds = Object.keys(providerMap);
       var nativeAttempts = 0;
-      var nativeDeadline = Date.now() + 4500;
+      var nativeDeadline = Date.now() + 14500;
       for (var pi = 0; pi < providerIds.length && nativeAttempts < 2 && !out.length; pi++) {
         var providerId = providerIds[pi];
         var providerTypes = providerMap[providerId];
@@ -297,13 +297,15 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
             "?ep=" + encodeURIComponent(episodeKey) +
             "&server=" + encodeURIComponent(providerId) +
             "&lang=" + lang;
+          var browserBudget = Math.min(8000, Math.max(1000, remaining - 250));
           var browserStreams = await alNativeWatchPlayer(
             watchUrl,
             lang,
             "Episode " + ep + " · " + providerId + (lang === "dub" ? " [Dub]" : " [Sub]"),
             id,
             ep,
-            providerId
+            providerId,
+            browserBudget
           );
           if (browserStreams.length) out = out.concat(browserStreams);
         }
