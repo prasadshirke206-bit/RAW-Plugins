@@ -127,8 +127,8 @@ Nine entries are present but disabled. RAW must respect their manifest flag and 
 
 A disabled provider must remain unavailable until its required capability is implemented and tested. Browser challenges must be completed by the user through a normal browser handoff; do not spoof fingerprints, synthesize challenge tokens, or evade CAPTCHA/verification.
 
-## Proposed native WebView stream resolver
+## Native WebView stream resolver
 
-The remaining UniversalExtractor-dependent routes need an Android host capability; QuickJS cannot create or control an Android WebView. The proposed ABI, request validation, lifecycle/cancellation rules, intercepted media URL classification, player-only activation, challenge handoff and acceptance tests are specified in [RAW_APP_ANIME_WEBVIEW_BRIDGE_SPEC.md](RAW_APP_ANIME_WEBVIEW_BRIDGE_SPEC.md).
+The RAW Android project now exposes `RAW_HOST.resolveAnimeEmbed` for the UniversalExtractor paths in Animostream, AnimeSalt, AniChan, Anikage and Miruro. The host performs WebView resolution, keeps cookie state native-only and returns RAW-owned loopback media URLs bound to the active AniList ID and episode. The relay rewrites HLS and supported non-DRM DASH manifests and serves progressive media; see [RAW_APP_ANIME_WEBVIEW_BRIDGE_SPEC.md](RAW_APP_ANIME_WEBVIEW_BRIDGE_SPEC.md) for the contract and limitations.
 
-This is a host-integration proposal, not an implemented capability. Until the RAW Android app exposes and device-tests the bridge, provider scripts must return no candidate for UniversalExtractor-only embeds. Never return the embed page itself or run arbitrary plugin-supplied JavaScript inside the WebView.
+The native source implementation and QuickJS adapters are present, but live provider extraction and MPV device playback remain acceptance gates. Never return an unresolved embed page as media or evaluate plugin-supplied JavaScript inside the WebView.
