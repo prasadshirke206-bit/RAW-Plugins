@@ -4,7 +4,7 @@
  * FlixCloud manifest, inherits CDN tokens, strips PNG/WebP wrappers and applies
  * the provider's repeating XOR mask. No site verification is bypassed.
  */
-var REANIME_ID = "rean ime".replace(" ", "");
+var REANIME_ID = "reanime";
 var REANIME_BASES = ["https://reanime.to", "https://reanime.cz"];
 var REANIME_DEFAULT_BASE = "https://reanime.to";
 var REANIME_FLIX = "https://flixcloud.cc";
@@ -292,7 +292,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     }
     var episodeId = String(episode.episodeId || ("ep-" + Math.trunc(ep)));
     var episodeNumber = episodeId.replace(/^ep-/, "");
-    if (!/^\d+(?:\.\d+)?$/.test(episodeNumber)) return [];
+    if (!/^[A-Za-z0-9._-]{1,80}$/.test(episodeNumber)) return [];
 
     var serverResponse = await raJson(base + "/api/flix/" + encodeURIComponent(id) + "/" + encodeURIComponent(episodeNumber), {
       headers: raApiHeaders(base, base + "/watch/" + slug + "?ep=" + encodeURIComponent(episodeNumber))
