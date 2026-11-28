@@ -13,6 +13,48 @@ var ANIKAGE_HEADERS = {
   "Accept": "application/json, text/plain, */*",
   "Referer": ANIKAGE_SITE + "/"
 };
+
+
+async function rawResolveUniversalEmbed(provider, embedUrl, label, language, anilistId, episodeNumber, pageUrl, headers, fallbackSubtitles) {
+  var host = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
+  if (!host || typeof host.resolveAnimeEmbed !== "function") return [];
+  var id = String(anilistId || ""), ep = Number(episodeNumber || 0);
+  if (!/^[1-9]\d*$/.test(id) || !Number.isFinite(ep) || ep <= 0 ||
+      !/^https:\/\//i.test(String(embedUrl || "")) || !/^https:\/\//i.test(String(pageUrl || ""))) return [];
+  var safeHeaders = {};
+  var allowed = ["user-agent", "accept", "accept-language", "origin"];
+  Object.keys(headers || {}).forEach(function (key) {
+    if (allowed.indexOf(String(key).toLowerCase()) >= 0) safeHeaders[key] = String(headers[key]);
+  });
+  try {
+    var result = await host.resolveAnimeEmbed({
+      capability: "raw.anime.webview-stream", version: 1, provider: provider,
+      anilistId: id, episodeNumber: ep, embedUrl: String(embedUrl), pageUrl: String(pageUrl),
+      headers: safeHeaders, timeoutMs: 15000
+    });
+    if (!result || result.status !== "resolved" || String(result.anilistId) !== id ||
+        Number(result.episodeNumber) !== ep || !Array.isArray(result.streams)) return [];
+    var subtitles = (Array.isArray(result.subtitles) ? result.subtitles : []).concat(
+      Array.isArray(fallbackSubtitles) ? fallbackSubtitles : []
+    ).filter(function (item) {
+      return item && /^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(String(item.url || ""));
+    });
+    return result.streams.map(function (stream) {
+      var url = String(stream && stream.url || "");
+      var protocol = String(stream && stream.protocol || "").toLowerCase();
+      if (!/^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(url) ||
+          (protocol !== "hls" && protocol !== "mp4")) return null;
+      var title = String(label || provider || "Anime stream");
+      return { name:title, title:title, url:url, quality:"Auto",
+        type:protocol === "hls" ? "m3u8" : "mp4", provider:provider,
+        language:language || "multi", headers:{}, subtitles:subtitles,
+        anilistId:id, episodeNumber:ep };
+    }).filter(Boolean);
+  } catch (error) {
+    console.log("[" + provider + "] native WebView resolution failed: " + String(error && error.message || error));
+    return [];
+  }
+}
 function akContext() { return (typeof globalThis !== "undefined" && globalThis.__CALL_ARGS__) || {}; }
 function akTimeout(p, ms) {
   var timer;
@@ -147,16 +189,14 @@ async function akVibePlayerVideos(label, embedUrl, lang) {
   }
 }
 
-async function akResolveEmbed(label, embedUrl, lang) {
+async function akResolveEmbed(label, embedUrl, lang, anilistId, episodeNumber) {
   if (!embedUrl || !/^https:\/\//i.test(embedUrl)) return [];
   if (/megaplay\.buzz|vidtube\.site/i.test(embedUrl)) {
     return await akMegaPlayVideos(label, embedUrl, lang);
   }
-  // These paths use CloudStream/Tachiyomi's native UniversalExtractor/WebView
-  // stack. QuickJS must fail closed until RAW exposes the equivalent host ABI.
   if (/flixcloud|rabbit|megacloud/i.test(embedUrl)) {
-    console.log("[Anikage] native UniversalExtractor route requires a RAW host capability");
-    return [];
+    return await rawResolveUniversalEmbed(ANIKAGE_ID, embedUrl, label, lang,
+      anilistId, episodeNumber, ANIKAGE_SITE + "/", ANIKAGE_HEADERS, []);
   }
   return await akVibePlayerVideos(label, embedUrl, lang);
 }
@@ -283,7 +323,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
 
     var hlsTasks = sourceEntries.map(async function (entry) {
       if (!entry) return [];
-      if (entry._embed) return await akResolveEmbed(entry._label, entry._embed, entry._lang);
+      if (entry._embed) return await akResolveEmbed(entry._label, entry._embed, entry._lang, id, ep);
       if (!entry._url) return [entry];
       try {
         return await akHls(entry._url, entry._label, entry._lang, entry._subs, entry._headers);
