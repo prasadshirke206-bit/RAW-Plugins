@@ -159,7 +159,8 @@ async function alNativeWatchPlayer(watchUrl, lang, label, id, ep, providerId, ti
       headers: ANILIGHT_HEADERS,
       timeoutMs: Number(timeoutMs || 8000),
       maxPlayNudges: 5,
-      playNudgeIntervalMs: 1500
+      playNudgeIntervalMs: 1500,
+      mediaSettleMs: 1500
     });
     if (!resolved || resolved.status !== "resolved" ||
         String(resolved.anilistId) !== String(id) ||
