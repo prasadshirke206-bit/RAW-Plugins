@@ -12,8 +12,8 @@ const existingMovieTvIds = [
   "bingr", "movy", "4khdhub", "hdhub4u", "bollyflix",
   "cinevood", "freekz", "net77", "uhdmovies", "vegamovies"
 ];
-const activeAnimeIds = ["allanime","anikage","anikoto","anilight","miruro","anichan","anikura","anikuro","animeheaven","anipm","animesaga","anitusk","animesalt","fouranimo","animotvslash","anineko","animestream","animostream","animesuge","anisnatch","animesogo"];
-const pendingAnimeIds = ["anilab","animepahe","aniwave","av1encodes","reanime","senshi"];
+const activeAnimeIds = ["allanime","anikage","anikoto","anilight","miruro","anichan","anikura","anikuro","animeheaven","anipm","animesaga","anitusk","animesalt","fouranimo","animotvslash","anineko","animestream","animostream","animesuge","anisnatch","animesogo","senshi"];
+const pendingAnimeIds = ["anilab","animepahe","aniwave","av1encodes","reanime"];
 const animeIds = [...activeAnimeIds, ...pendingAnimeIds];
 
 test("manifest retains the existing QuickJS movie/TV contract", () => {
@@ -44,10 +44,10 @@ test("provider IDs are unique and all referenced files exist", () => {
   }
 });
 
-test("NetMirror remains disabled until a legitimate user-completed verification handoff exists", () => {
+test("NetMirror stays catalogue-enabled without synthesizing verification", () => {
   const provider = manifest.providers.find((item) => item.id === "net77");
   assert.ok(provider, "net77 catalogue entry");
-  assert.equal(provider.enabled, false);
+  assert.equal(provider.enabled, true);
   assert.match(provider.description, /user-completed NetMirror verification/i);
   assert.match(provider.description, /synthetic reCAPTCHA response path is not used/i);
 });
