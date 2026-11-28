@@ -269,8 +269,14 @@ async function koResolveEmbed(embed, label, lang, siteBase) {
       if (ext2 === "m3u8") out = out.concat(await koHls(links[i], label, lang, { Referer: referer }, []));
       else { var candidate = koCandidate(links[i], label, "Auto", ext2, lang, { Referer: referer }, []); if (candidate) out.push(candidate); }
     }
-    return out;
-  } catch (_) { return []; }
+    if (out.length) return out;
+    // Keep unresolved browser links as embed candidates for RAW's Android bridge.
+    var browserCandidate = koCandidate(embed, label + " - Browser", "Auto", "embed", lang, { Referer: referer }, []);
+    return browserCandidate ? [browserCandidate] : [];
+  } catch (_) {
+    var fallbackCandidate = koCandidate(embed, label + " - Browser", "Auto", "embed", lang, { Referer: referer }, []);
+    return fallbackCandidate ? [fallbackCandidate] : [];
+  }
 }
 async function koTrySearch(base, title) {
   var url = base + "/filter?keyword=" + encodeURIComponent(title) + "&page=1";
