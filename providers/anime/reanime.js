@@ -162,6 +162,10 @@ function raMediaProxy(url, headers, options) {
   if (typeof globalThis.__raw_create_media_proxy !== "function") throw new Error("RAW native media proxy is unavailable");
   return String(globalThis.__raw_create_media_proxy(url, JSON.stringify(headers || {}), JSON.stringify(options || {})));
 }
+function raMediaTime(chapter, field) {
+  var value = Number(chapter && chapter[field]);
+  return Number.isFinite(value) && value >= 0 && value <= 3600 ? value : null;
+}
 function raSubtitles(embedData) {
   var rows = Array.isArray(embedData && embedData.subtitles) ? embedData.subtitles : [];
   return rows.map(function (track) {
@@ -257,6 +261,10 @@ async function raResolveServer(server, base, anilistId, episode, context) {
     provider: REANIME_ID,
     headers: {},
     subtitles: subtitleTracks,
+    introStart: raMediaTime(embedData.intro_chapter, "start"),
+    introEnd: raMediaTime(embedData.intro_chapter, "end"),
+    outroStart: raMediaTime(embedData.outro_chapter, "start"),
+    outroEnd: raMediaTime(embedData.outro_chapter, "end"),
     anilistId: String(anilistId),
     episodeNumber: Number(episode)
   };
