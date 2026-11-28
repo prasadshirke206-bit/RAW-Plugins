@@ -171,7 +171,23 @@ function awType(labelText, dataType) {
   return label || "unknown";
 }
 function awServerData(html, context) {
-  var types = html.match(/<div\b[^>]*class=["'][^"']*\btype\b[^"']*["'][^>]*>[\s\S]*?<\/div>/gi) || [];
+  var source = String(html || ""), types = [], token = /<div\b[^>]*>|<\/div>/gi, match;
+  while ((match = token.exec(source)) !== null) {
+    if (!/^<div\b/i.test(match[0]) || !/\bclass\s*=\s*["'][^"']*\btype\b[^"']*["']/i.test(match[0])) continue;
+    var start = match.index, depth = 1, scan = /<div\b[^>]*>|<\/div>/gi;
+    scan.lastIndex = token.lastIndex;
+    var nested;
+    while (depth > 0 && (nested = scan.exec(source)) !== null) {
+      if (/^<\/div/i.test(nested[0])) depth--;
+      else depth++;
+    }
+    if (depth === 0) {
+      types.push(source.slice(start, scan.lastIndex));
+      token.lastIndex = scan.lastIndex;
+    } else {
+      break;
+    }
+  }
   var hostAllow = Array.isArray(context.hostToggle) ? context.hostToggle.map(String) : null;
   var typeAllow = Array.isArray(context.typeToggle) ? context.typeToggle.map(String) : null;
   var servers = [];
