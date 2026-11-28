@@ -35,8 +35,24 @@ async function getStreams(anilistId,mediaType,season,episode,extra){
     var stream=s.stream?acAbs(AC_BASE,s.stream):"";
     if(stream&&String(s.type||"hls").toLowerCase()==="hls")out=out.concat(await acHls(stream,label, "hls",{"Referer":AC_BASE+"/"},subs,id,ep));
     else if(stream&&/\.(mp4|mkv)(?:$|\?)/i.test(stream)){var c=acCandidate(stream,label,"Auto",/\.mkv/i.test(stream)?"mkv":"mp4",kind,{"Referer":AC_BASE+"/"},subs,id,ep);if(c)out.push(c);}
-    // Embed URLs are not passed to MPV. Only expose a direct media URL discoverable in public HTML.
-    else if(s.embed){try{var html=await(await acFetch(acAbs(AC_BASE,s.embed),{headers:{"Referer":AC_BASE+"/"}},8000)).text();var m=html.match(/https?:\\?\/\\?\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?/i);if(m)out=out.concat(await acHls(m[0].replace(/\\\//g,"/"),label,kind,{"Referer":acAbs(AC_BASE,s.embed)},subs,id,ep));}catch(_){}}
+    // Resolve a directly visible HLS URL first. If the source only returns an embed page,
+    // pass that page to RAW's Android WebView bridge; never expose the iframe itself to MPV.
+    else if(s.embed){
+      var embedUrl=acAbs(AC_BASE,s.embed),resolvedDirect=false;
+      try{
+       var html=await(await acFetch(embedUrl,{headers:{"Referer":AC_BASE+"/"}},8000)).text();
+       var m=html.match(/https?:\\?\/\\?\/[^"'\\s]+\\.m3u8(?:\\?[^"'\\s]*)?/i);
+       if(m){
+        var videos=await acHls(m[0].replace(/\\\\\//g,"/"),label,kind,{"Referer":embedUrl},subs,id,ep);
+        if(videos.length){out=out.concat(videos);resolvedDirect=true;}
+       }
+      }catch(_){}
+      if(!resolvedDirect){
+       out.push({name:label,title:label,url:embedUrl,quality:"Auto",type:"embed",provider:AC_ID,
+        language:kind,headers:{"Referer":AC_BASE+"/"},subtitles:subs,pageUrl:AC_BASE+"/",
+        anilistId:id,episodeNumber:ep});
+      }
+    }
    }
    if(out.length)break;
   }
