@@ -453,7 +453,24 @@ async function getStreams(anilistId,mediaType,season,episode,extraArgs) {
         return await awResolvePlayer(embed,server,base,context,0);
       }catch(error){console.log("[AniWave] "+server.serverName+" failed: "+String(error&&error.message||error));return [];}
     }));
-    return resolved.reduce(function(all,items){return all.concat(items||[]);},[]);
+    var finalCandidates=resolved.reduce(function(all,items){return all.concat(items||[]);},[]);
+    // Mirror AniWave's sortHosterVideos contract: preferred audio type first,
+    // preferred quality next, then the exact canonical resolution order.
+    var preferredType=String(context.preferredType||"").toLowerCase();
+    var preferredQuality=String(context.preferredQuality||"").toLowerCase();
+    var qualityOrder=["2160p","1440p","1080p","720p","480p","360p","240p","144p"];
+    finalCandidates.sort(function(left,right){
+      var leftType=preferredType && String(left.title||"").toLowerCase().indexOf(preferredType)>=0?1:0;
+      var rightType=preferredType && String(right.title||"").toLowerCase().indexOf(preferredType)>=0?1:0;
+      if(leftType!==rightType) return rightType-leftType;
+      var leftPreferred=preferredQuality && String(left.title||"").toLowerCase().indexOf(preferredQuality)>=0?1:0;
+      var rightPreferred=preferredQuality && String(right.title||"").toLowerCase().indexOf(preferredQuality)>=0?1:0;
+      if(leftPreferred!==rightPreferred) return rightPreferred-leftPreferred;
+      var lq=qualityOrder.findIndex(function(q){return String(left.title||"").toLowerCase().indexOf(q)>=0;});
+      var rq=qualityOrder.findIndex(function(q){return String(right.title||"").toLowerCase().indexOf(q)>=0;});
+      return (lq<0?qualityOrder.length:lq)-(rq<0?qualityOrder.length:rq);
+    });
+    return finalCandidates;
   }catch(error){console.log("[AniWave] resolve failed: "+String(error&&error.message||error));return [];}
 }
 if(typeof globalThis!=="undefined") globalThis.getStreams=getStreams;
