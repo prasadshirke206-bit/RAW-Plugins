@@ -144,6 +144,51 @@ async function alMegaPlay(embedUrl, lang, label) {
   var audioBadge = lang === "dub" ? "[Dub]" : (tracks.length ? "[Soft Sub]" : "[Sub]");
   return await alHls(file, audioBadge, lang, embedHeaders, tracks);
 }
+async function alNativeWatchPlayer(watchUrl, lang, label, id, ep) {
+  try {
+    var host = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
+    if (!host || typeof host.resolveAnimeEmbed !== "function") return [];
+    var resolved = await host.resolveAnimeEmbed({
+      provider: ANILIGHT_ID,
+      anilistId: String(id),
+      episodeNumber: Number(ep),
+      embedUrl: watchUrl,
+      pageUrl: ANILIGHT_SITE + "/",
+      headers: ANILIGHT_HEADERS,
+      timeoutMs: 1500
+    });
+    if (!resolved || resolved.status !== "resolved" ||
+        String(resolved.anilistId) !== String(id) ||
+        Number(resolved.episodeNumber) !== Number(ep)) return [];
+    var subtitles = Array.isArray(resolved.subtitles) ? resolved.subtitles : [];
+    var streams = Array.isArray(resolved.streams) ? resolved.streams : [];
+    return streams.map(function (stream) {
+      if (!stream || !stream.url) return null;
+      var protocol = String(stream.protocol || "").toLowerCase();
+      var type = protocol === "hls" ? "m3u8" : (protocol === "dash" ? "mpd" : "mp4");
+      var url = String(stream.url);
+      // Local URLs are accepted only when returned by RAW's native bridge;
+      // the Android candidate policy independently verifies relay ownership.
+      if (!/^https:\/\//i.test(url) && !/^http:\/\/127\.0\.0\.1:\d+\/hls\/[a-f0-9]+/i.test(url)) return null;
+      return {
+        name: "AniLight | " + label,
+        title: label,
+        url: url,
+        quality: "Auto",
+        type: type,
+        provider: ANILIGHT_ID,
+        language: lang,
+        headers: stream.headers || {},
+        subtitles: subtitles,
+        anilistId: String(id),
+        episodeNumber: Number(ep)
+      };
+    }).filter(Boolean);
+  } catch (error) {
+    console.log("[AniLight] RAW native WebView resolver failed: " + String(error && error.message || error));
+    return [];
+  }
+}
 async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
   try {
     var context = Object.assign({}, alContext(), extraArgs || {});
@@ -180,11 +225,85 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
       if (!embed) return [];
       try { return await alMegaPlay(embed, lang, "Episode " + ep); }
       catch (error) {
-        console.log("[AniLight] " + lang + " source failed: " + String(error && error.message || error));
+        console.log("[AniLight] " + lang + " MegaPlay source failed: " + String(error && error.message || error));
         return [];
       }
     }));
     audioResults.forEach(function (items) { out = out.concat(items || []); });
+
+    // Kotlin's non-MegaPlay path reads serversNew and opens the provider's own
+    // watch player (?server=<id>&lang=<sub|dub>) in WebViewStreamResolver.
+    // RAW implements that same browser-session capture natively; no Turnstile or
+    // Cloudflare token is synthesized or bypassed by this plugin.
+    if (!out.length) {
+      var roster = null;
+      try {
+        roster = await alJson(
+          ANILIGHT_API + "/watch/" + encodeURIComponent(match.slug) + "/serversNew",
+          { headers: ANILIGHT_HEADERS },
+          6000
+        );
+      } catch (rosterError) {
+        console.log("[AniLight] serversNew unavailable; using original Kotlin fallback roster");
+      }
+      var episodeKey = String(epItem.number == null ? ep : epItem.number);
+      var episodeRoster = roster && roster[episodeKey];
+      if (!episodeRoster && roster) {
+        var rosterKeys = Object.keys(roster);
+        for (var rk = 0; rk < rosterKeys.length; rk++) {
+          if (Number(rosterKeys[rk]) === Number(episodeKey)) {
+            episodeRoster = roster[rosterKeys[rk]];
+            break;
+          }
+        }
+      }
+      var fallbackRoster = {
+        sub: ["l", "mello", "misa", "raye"],
+        hardsub: ["light", "near", "ryu"],
+        dub: ["l", "light", "misa", "near", "ryu"]
+      };
+      if (!episodeRoster || !Object.keys(episodeRoster).length) episodeRoster = fallbackRoster;
+      var providerMap = {};
+      function addProviders(list, audioType) {
+        (Array.isArray(list) ? list : []).forEach(function (providerId) {
+          var key = String(providerId || "").toLowerCase();
+          if (!key || key.indexOf("yuki") >= 0 || key.indexOf("vee") >= 0) return;
+          if (!providerMap[key]) providerMap[key] = [];
+          if (providerMap[key].indexOf(audioType) < 0) providerMap[key].push(audioType);
+        });
+      }
+      addProviders(episodeRoster.sub, "sub");
+      addProviders(episodeRoster.hardsub, "sub");
+      addProviders(episodeRoster.dub, "dub");
+      var providerIds = Object.keys(providerMap);
+      var nativeAttempts = 0;
+      var nativeDeadline = Date.now() + 4500;
+      for (var pi = 0; pi < providerIds.length && nativeAttempts < 2 && !out.length; pi++) {
+        var providerId = providerIds[pi];
+        var providerTypes = providerMap[providerId];
+        var orderedTypes = types.filter(function (kind) {
+          return providerTypes.indexOf(kind) >= 0;
+        });
+        for (var ti = 0; ti < orderedTypes.length && nativeAttempts < 2 && !out.length; ti++) {
+          var lang = orderedTypes[ti] === "dub" ? "dub" : "sub";
+          var remaining = nativeDeadline - Date.now();
+          if (remaining < 700) break;
+          nativeAttempts++;
+          var watchUrl = ANILIGHT_SITE + "/watch/" + encodeURIComponent(match.slug) +
+            "?ep=" + encodeURIComponent(episodeKey) +
+            "&server=" + encodeURIComponent(providerId) +
+            "&lang=" + lang;
+          var browserStreams = await alNativeWatchPlayer(
+            watchUrl,
+            lang,
+            "Episode " + ep + " · " + providerId + (lang === "dub" ? " [Dub]" : " [Sub]"),
+            id,
+            ep
+          );
+          if (browserStreams.length) out = out.concat(browserStreams);
+        }
+      }
+    }
     var seen = {}; return out.filter(function (c) { if (!c || !c.url || seen[c.url]) return false; seen[c.url] = true; return true; }).map(function (c) { c.anilistId = id; c.episodeNumber = ep; return c; });
   } catch (e) { console.log("[AniLight] " + String(e && e.message || e)); return []; }
 }
