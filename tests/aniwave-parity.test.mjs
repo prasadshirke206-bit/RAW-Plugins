@@ -89,8 +89,9 @@ test("AniWave eight-stage VRF matches Kotlin and remains distinct from Anikoto/S
 });
 
 test("AniWave maps the exact AniList episode, applies its VRF, and resolves the requested HTML server", async () => {
+  const holder = {};
   const { exports, calls, proxyCalls } = loadProvider(async (url, init = {}) => {
-    if (url === "https://animewave.to/filter?keyword=Wave%20Fixture&page=1&vrf=" + exportsVrf("Wave Fixture")) {
+    if (url === "https://animewave.to/filter?keyword=Wave%20Fixture&page=1&vrf=" + holder.vrf) {
       return response('<div class="ani items"><div class="item"><a class="name" href="/watch/wave-fixture">Wave Fixture</a></div></div>', { url });
     }
     if (url === "https://animewave.to/watch/wave-fixture") {
@@ -138,7 +139,7 @@ test("AniWave maps the exact AniList episode, applies its VRF, and resolves the 
     throw new Error("Unexpected AniWave request: " + url);
   });
 
-  function exportsVrf(value) { return exports.__test.vrf(value); }
+  holder.vrf = (await loadProvider(async () => response(""))).exports.__test.vrf("Wave Fixture");
   const candidates = await exports.getStreams("16498", "anime", 1, 5, {
     title: "Wave Fixture",
     titles: ["Wave Fixture"],
@@ -154,7 +155,7 @@ test("AniWave maps the exact AniList episode, applies its VRF, and resolves the 
   assert.ok(candidates.every((item) => item.url.startsWith("http://127.0.0.1:43523/hls/aniwave")));
   const search = calls.find((call) => call.url.includes("/filter?"));
   assert.ok(search);
-  assert.equal(new URL(search.url).searchParams.get("vrf"), exportsVrf("Wave Fixture"));
+  assert.equal(new URL(search.url).searchParams.get("vrf"), holder.vrf);
   assert.ok(calls.some((call) => call.url === "https://animewave.to/ajax/server?get=server-5"));
   assert.ok(calls.some((call) => call.url === "https://animewave.to/ajax/server?get=server-6"));
   assert.ok(!calls.some((call) => call.url.includes("servers=old-server")));
