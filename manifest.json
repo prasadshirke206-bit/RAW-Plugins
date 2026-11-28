@@ -810,8 +810,8 @@
     {
       "id": "reanime",
       "name": "ReAnime",
-      "description": "Disabled: playback relies on the native FlixProxyServer to rewrite streams/keys; pending a RAW host-side proxy capability.",
-      "version": "1.0.0",
+      "description": "QuickJS port follows the Kotlin AniList-to-site ID check, exact episode and FlixCloud server flow, JSON5 embed data conversion, enc-dec token/stream requests, subtitle extraction and RAW native FlixProxy-compatible HLS session options (manifest wrapper, inherited token, PNG/WebP stripping and repeating XOR). Android/MPV live playback remains to be verified.",
+      "version": "1.1.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"

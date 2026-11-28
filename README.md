@@ -48,7 +48,7 @@ The JS anime providers are still being brought to behavior parity with their ori
 
 ## Current anime conversion scope
 
-The anime catalogue contains 27 provider entries, and all 27 are enabled in the manifest as requested. Twenty-two currently have non-placeholder QuickJS stream implementations at different parity stages; five entries are catalogue-enabled but their JavaScript entrypoints still fail closed until the missing implementation or required RAW-native host capability is completed. Catalogue enablement does not imply playback readiness.
+The anime catalogue contains 27 provider entries, and all 27 are enabled in the manifest as requested. Twenty-three currently have non-placeholder QuickJS stream implementations at different parity stages; four entries are catalogue-enabled but their JavaScript entrypoints still fail closed until the missing implementation or required RAW-native host capability is completed. Catalogue enablement does not imply playback readiness.
 
 | Provider | Implemented in QuickJS | Known host/runtime boundary |
 |---|---|---|
@@ -57,6 +57,7 @@ The anime catalogue contains 27 provider entries, and all 27 are enabled in the 
 | Anikoto | Kotlin-compatible VRF episode-list signing, mirror/title matching, server and mapper fallback, MegaPlay AES-CBC source decryption, 90-second HMAC-SHA256 CDN token generation, ASS-first subtitle selection and intro/outro metadata | Browser verification/challenge-dependent routes remain unsupported; real endpoint and device playback verification are still outstanding |
 | AnimeSuge | Kotlin-compatible RC4 → Base64URL → cyclic byte-shift → Base64URL → ROT13 VRF, exact-title search, `data-ids` episode lookup, server API lookup and direct HLS/MegaPlay paths | Shared AnikotoTheme extractor coverage, native playlist/key proxy, full metadata behavior and Android/MPV playback remain incomplete |
 | Senshi | Kotlin AniList/title mapping, exact episode/embed lookup and sub/dub source selection; RAW-native `__oct.open()` resolver, `EM3U8v1:` AES-256-GCM playlist decoding and nested HLS/segment relay | Requires real Android/MPV playback verification and live endpoint validation |
+| Re:ANIME | Kotlin AniList ID check, exact episode/server mapping, JSON5 embed parsing and enc-dec token/stream flow; RAW native FlixProxy-compatible manifest wrapper, token inheritance, PNG/WebP prefix stripping and repeating XOR | Android/MPV playback, live endpoint validation and original preferences/skip-time metadata remain to be verified |
 | AnimeSogo | Kotlin `encodeAnimeSogoVrf` sequence, exact AniList title search, `data-ids` episode lookup, Sogo-specific server selectors, and visible direct HLS/MP4/MegaPlay sources | Native playlist/key proxy, full shared AnikotoTheme extractor coverage and Android/MPV playback remain incomplete |
 | AniSnatch | Dynamic site-config SMC request encoder, shuffled/chunked API payloads, marker/XOR/gzip response decoding, AniList title mapping, exact episode/server lookup and visible direct HLS/MP4 sources | Kotlin playlist/segment/key rewriting, full hoster extractor parity, settings preferences and Android/MPV playback remain incomplete |
 | AniLight | AniList-backed API lookup, episode matching, public MegaPlay embed, AES-CBC source parsing, HLS variants and subtitles | Non-MegaPlay routes relying on WebView/Turnstile require a host-provided browser capability; QuickJS does not emulate that browser |
@@ -114,7 +115,7 @@ Original Kotlin source is retained under its own upstream attribution and Apache
 
 ## Pending implementations (catalogue-enabled, resolver fail-closed)
 
-The following five sources are enabled in the manifest catalogue but still have placeholder JavaScript entrypoints that return no streams. Their Kotlin originals are retained as references until a legitimate QuickJS or RAW-native implementation is complete:
+The following four sources are enabled in the manifest catalogue but still have placeholder JavaScript entrypoints that return no streams. Their Kotlin originals are retained as references until a legitimate QuickJS or RAW-native implementation is complete:
 
 - **AniLab** — requires Kyoto Player official-client request signing.
 - **AnimePahe** — depends on Cloudflare/session handling and native HLS/Kwik extractors.
@@ -122,7 +123,7 @@ The following five sources are enabled in the manifest catalogue but still have 
 
 - **AniWave** — depends on a VRF/extractor chain and native HLS proxy.
 - **AV1Encodes** — current flow includes verification/ad-check dependencies and native extractors.
-- **ReAnime** — depends on the local FlixProxyServer.
+
 
 
 These entries currently have enabled=true for catalogue visibility, but their `getStreams` functions fail closed. They must not be described as playable until provider-specific tests and device validation pass.
