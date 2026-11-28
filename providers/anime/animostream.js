@@ -1595,6 +1595,48 @@ err =`,b)}x&&s.pop()}(t,i,n),t}var Va=class{constructor(e){this.node=e}};functio
 })(globalThis);
 /* END RAW SYNCHRONY */
 var AM_ID="animostream",AM_BASE="https://www.animostream.xyz";
+
+async function rawResolveUniversalEmbed(provider, embedUrl, label, language, anilistId, episodeNumber, pageUrl, headers, fallbackSubtitles) {
+  var host = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
+  if (!host || typeof host.resolveAnimeEmbed !== "function") { console.log("[" + provider + "] UniversalExtractor route requires a RAW host capability"); return []; }
+  var id = String(anilistId || ""), ep = Number(episodeNumber || 0);
+  if (!/^[1-9]\d*$/.test(id) || !Number.isFinite(ep) || ep <= 0 ||
+      !/^https:\/\//i.test(String(embedUrl || "")) || !/^https:\/\//i.test(String(pageUrl || ""))) return [];
+  var safeHeaders = {};
+  var allowed = ["user-agent", "accept", "accept-language", "origin"];
+  Object.keys(headers || {}).forEach(function (key) {
+    if (allowed.indexOf(String(key).toLowerCase()) >= 0) safeHeaders[key] = String(headers[key]);
+  });
+  try {
+    var result = await host.resolveAnimeEmbed({
+      capability: "raw.anime.webview-stream", version: 1, provider: provider,
+      anilistId: id, episodeNumber: ep, embedUrl: String(embedUrl), pageUrl: String(pageUrl),
+      headers: safeHeaders, timeoutMs: 15000
+    });
+    if (!result || result.status !== "resolved" || String(result.anilistId) !== id ||
+        Number(result.episodeNumber) !== ep || !Array.isArray(result.streams)) return [];
+    var subtitles = (Array.isArray(result.subtitles) ? result.subtitles : []).concat(
+      Array.isArray(fallbackSubtitles) ? fallbackSubtitles : []
+    ).filter(function (item) {
+      return item && /^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(String(item.url || ""));
+    });
+    return result.streams.map(function (stream) {
+      var url = String(stream && stream.url || "");
+      var protocol = String(stream && stream.protocol || "").toLowerCase();
+      if (!/^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(url) ||
+          (protocol !== "hls" && protocol !== "mp4")) return null;
+      var title = String(label || provider || "Anime stream");
+      return { name:title, title:title, url:url, quality:"Auto",
+        type:protocol === "hls" ? "m3u8" : "mp4", provider:provider,
+        language:language || "multi", headers:{}, subtitles:subtitles,
+        anilistId:id, episodeNumber:ep };
+    }).filter(Boolean);
+  } catch (error) {
+    console.log("[" + provider + "] native WebView resolution failed: " + String(error && error.message || error));
+    return [];
+  }
+}
+
 function amCtx(){return(globalThis&&globalThis.__CALL_ARGS__)||{};}
 async function amFetch(u,o){var t;var r=await Promise.race([fetch(u,o||{}),new Promise(function(_,j){t=setTimeout(function(){j(new Error("timeout"));},10000);})]).finally(function(){clearTimeout(t);});if(!r||!r.ok)throw new Error("HTTP "+(r?r.status:"network"));return r;}
 function amNorm(s){return String(s||"").toLowerCase().normalize?String(s||"").toLowerCase().normalize("NFKC").replace(/[^a-z0-9]+/g," ").trim():String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
@@ -1604,7 +1646,13 @@ async function amFind(meta,c){var map=c.providerMappings&&c.providerMappings.ani
 function amParseData(html){var m=html.match(/var\s+animeData\s*=\s*(\{[\s\S]*?\});\s*(?:var|let|const|\n)/);if(!m)return null;try{return JSON.parse(m[1]);}catch(_){return null;}}
 function amQ(h){var n=Number(h||0);return n>=2160?"2160p":n>=1440?"1440p":n>=1080?"1080p":n>=720?"720p":n>=480?"480p":n>=360?"360p":n>=240?"240p":n>=144?"144p":"Auto";}
 async function amDirect(u,label,id,ep,referer){if(!u||!/^https:\/\//i.test(u))return[];var body="";try{body=await(await amFetch(u,{headers:{"Referer":referer||AM_BASE+"/"}})).text();}catch(_){}if(body.indexOf("#EXTM3U")<0){if(/\.(?:mp4|mkv)(?:$|\?)/i.test(u))return[{name:label,title:label,url:u,quality:"Auto",type:/mkv/i.test(u)?"mkv":"mp4",provider:AM_ID,language:"multi",headers:{"Referer":referer||AM_BASE+"/"},subtitles:[],anilistId:id,episodeNumber:ep}];return[];}var lines=body.split(/\r?\n/),out=[];for(var i=0;i<lines.length;i++)if(lines[i].indexOf("#EXT-X-STREAM-INF:")===0){var h=(lines[i].match(/RESOLUTION=\d+x(\d+)/i)||[])[1],v="";for(var j=i+1;j<lines.length;j++)if(lines[j].trim()&&lines[j].trim()[0]!=="#"){v=lines[j].trim();break;}if(v){var abs=amAbs(v,u),q=amQ(h);out.push({name:label+" "+q,title:label+" "+q,url:abs,quality:q,type:"m3u8",provider:AM_ID,language:"multi",headers:{"Referer":referer||AM_BASE+"/"},subtitles:[],anilistId:id,episodeNumber:ep});}}return out.length?out:[{name:label,title:label,url:u,quality:"Auto",type:"m3u8",provider:AM_ID,language:"multi",headers:{"Referer":referer||AM_BASE+"/"},subtitles:[],anilistId:id,episodeNumber:ep}];}
-async function amResolve(raw,label,id,ep,ref){var u=String(raw||"");if(!u)return[];var ext=globalThis&&globalThis.RAWAnimeExtractors;if(ext){var sharedOpts={provider:AM_ID,anilistId:id,episodeNumber:ep,language:"multi",labelPrefix:label,log:function(m){console.log(m);}};if(/streamwish|morencius|earnvids/i.test(u+" "+label))return await ext.streamwish(u,Object.assign({},sharedOpts,{pageHeaders:{Referer:ref||AM_BASE+"/"}}));if(/embedseek/i.test(u))return await ext.embedseek(u,Object.assign({},sharedOpts,{referer:ref||AM_BASE+"/",pageHeaders:{Referer:ref||AM_BASE+"/"}}));if(/streamtape/i.test(u))return await ext.streamtape(u,Object.assign({},sharedOpts,{pageHeaders:{Referer:ref||AM_BASE+"/"}}));if(/dood/i.test(u))return await ext.dood(u,Object.assign({},sharedOpts,{pageHeaders:{Referer:ref||AM_BASE+"/"}}));if(/vidmoly/i.test(u))return await ext.vidmoly(u,sharedOpts);if(/abyss|short\.icu|embedplayabyss/i.test(u))return await ext.abyss(u,Object.assign({},sharedOpts,{referer:ref||AM_BASE+"/"}));}if(/^https:\/\//i.test(u)&&/\.(?:m3u8|mp4|mkv)(?:$|\?)/i.test(u))return amDirect(u,label,id,ep,ref);var html="";try{html=await(await amFetch(amAbs(u),{headers:{"Referer":ref||AM_BASE+"/"}})).text();}catch(_){return[];}var direct=(html.match(/https?:\/\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?/i)||[])[0]||(html.match(/https?:\/\/[^"'\\s]+\.(?:mp4|mkv)(?:\?[^"'\\s]*)?/i)||[])[0];if(!direct)return[];return amDirect(direct,label,id,ep,amAbs(u));}
+async function amResolve(raw,label,id,ep,ref){var u=String(raw||"");if(!u)return[];var ext=globalThis&&globalThis.RAWAnimeExtractors;if(ext){var sharedOpts={provider:AM_ID,anilistId:id,episodeNumber:ep,language:"multi",labelPrefix:label,log:function(m){console.log(m);}};if(/streamwish|morencius|earnvids/i.test(u+" "+label))return await ext.streamwish(u,Object.assign({},sharedOpts,{pageHeaders:{Referer:ref||AM_BASE+"/"}}));if(/embedseek/i.test(u))return await ext.embedseek(u,Object.assign({},sharedOpts,{referer:ref||AM_BASE+"/",pageHeaders:{Referer:ref||AM_BASE+"/"}}));if(/streamtape/i.test(u))return await ext.streamtape(u,Object.assign({},sharedOpts,{pageHeaders:{Referer:ref||AM_BASE+"/"}}));if(/dood/i.test(u))return await ext.dood(u,Object.assign({},sharedOpts,{pageHeaders:{Referer:ref||AM_BASE+"/"}}));if(/vidmoly/i.test(u))return await ext.vidmoly(u,sharedOpts);if(/abyss|short\.icu|embedplayabyss/i.test(u))return await ext.abyss(u,Object.assign({},sharedOpts,{referer:ref||AM_BASE+"/"}));}if(/^https:\/\//i.test(u)&&/\.(?:m3u8|mp4|mkv)(?:$|\?)/i.test(u))return amDirect(u,label,id,ep,ref);var embed=amAbs(u,ref||AM_BASE),html="";
+ try{html=await(await amFetch(embed,{headers:{"Referer":ref||AM_BASE+"/"}})).text();}
+ catch(_){return await rawResolveUniversalEmbed(AM_ID,embed,label,"multi",id,ep,ref||AM_BASE+"/",{"Accept":"text/html,application/xhtml+xml,*/*"},[]);}
+ var direct=(html.match(/https?:\/\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?/i)||[])[0]||
+   (html.match(/https?:\/\/[^"'\\s]+\.(?:mp4|mkv)(?:\?[^"'\\s]*)?/i)||[])[0];
+ if(!direct)return await rawResolveUniversalEmbed(AM_ID,embed,label,"multi",id,ep,ref||AM_BASE+"/",{"Accept":"text/html,application/xhtml+xml,*/*"},[]);
+ return amDirect(direct,label,id,ep,embed);}
 async function getStreams(anilistId,mediaType,season,episode,extra){try{var c=Object.assign({},amCtx(),extra||{}),id=String(anilistId||c.anilistId||""),ep=Number(episode||c.episodeNumber||0),sn=Number(season||c.season||1);if(mediaType!=="anime"||!/^[1-9]\d*$/.test(id)||!Number.isFinite(ep)||ep<=0)return[];var meta=await amMeta(id,c),page=await amFind(meta,c);if(!page)return[];var html=await(await amFetch(page)).text(),data=amParseData(html),out=[];if(data){var sKey="s"+(sn>0?sn:1),seasonData=data[sKey]||data["S"+(sn>0?sn:1)];if(seasonData){var list=seasonData.episodes||[],idx=list.findIndex(function(v){return Math.abs(Number(v)-ep)<0.0001;});if(idx<0&&ep<=list.length)idx=ep-1;if(idx>=0){var keys=Object.keys(seasonData).filter(function(k){return k!=="episodes";});for(var i=0;i<keys.length;i++){var value=seasonData[keys[i]],u=Array.isArray(value)?String(value[idx]||""):String(value||"");if(!u)continue;var lang=/dub/i.test(keys[i])?"dub":"sub";out=out.concat(await amResolve(u,keys[i]+" "+lang.toUpperCase(),id,ep,page));}}}}
  if(!out.length){var vars=/<script\b[^>]*>[\s\S]*?<\/script>/gi,m,linkRx=/var\s+(\w+Link)\s*=\s*["']([^"']+)["']/g,html2=html,x;while((x=linkRx.exec(html2))!==null){var u=x[2];if(u)out=out.concat(await amResolve(u,x[1],id,ep,page));}}
  var seen={};return out.filter(function(x){if(seen[x.url])return false;seen[x.url]=1;return true;});}catch(e){console.log("[Animostream] "+String(e&&e.message||e));return[];}}

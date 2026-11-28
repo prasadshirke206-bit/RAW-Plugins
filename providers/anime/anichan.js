@@ -3,6 +3,56 @@
  * direct media URL is visible; Android UniversalExtractor is not emulated.
  */
 var AC_ID="anichan", AC_BASE="https://anichan.net";
+
+async function rawResolveUniversalEmbed(provider, embedUrl, label, language, anilistId, episodeNumber, pageUrl, headers, fallbackSubtitles) {
+  var host = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
+  if (!host || typeof host.resolveAnimeEmbed !== "function") { console.log("[" + provider + "] UniversalExtractor route requires a RAW host capability"); return []; }
+  var id = String(anilistId || ""), ep = Number(episodeNumber || 0);
+  if (!/^[1-9]\d*$/.test(id) || !Number.isFinite(ep) || ep <= 0 ||
+      !/^https:\/\//i.test(String(embedUrl || "")) || !/^https:\/\//i.test(String(pageUrl || ""))) return [];
+  var safeHeaders = {};
+  var allowed = ["user-agent", "accept", "accept-language", "origin"];
+  Object.keys(headers || {}).forEach(function (key) {
+    if (allowed.indexOf(String(key).toLowerCase()) >= 0) safeHeaders[key] = String(headers[key]);
+  });
+  try {
+    var result = await host.resolveAnimeEmbed({
+      capability: "raw.anime.webview-stream",
+      version: 1,
+      provider: provider,
+      anilistId: id,
+      episodeNumber: ep,
+      embedUrl: String(embedUrl),
+      pageUrl: String(pageUrl),
+      headers: safeHeaders,
+      timeoutMs: 15000
+    });
+    if (!result || result.status !== "resolved" || String(result.anilistId) !== id ||
+        Number(result.episodeNumber) !== ep || !Array.isArray(result.streams)) return [];
+    var subtitles = (Array.isArray(result.subtitles) ? result.subtitles : []).concat(
+      Array.isArray(fallbackSubtitles) ? fallbackSubtitles : []
+    ).filter(function (item) {
+      return item && /^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(String(item.url || ""));
+    });
+    return result.streams.map(function (stream) {
+      var url = String(stream && stream.url || "");
+      var protocol = String(stream && stream.protocol || "").toLowerCase();
+      if (!/^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(url) ||
+          (protocol !== "hls" && protocol !== "mp4")) return null;
+      var title = String(label || provider || "Anime stream");
+      return {
+        name: title, title: title, url: url, quality: "Auto",
+        type: protocol === "hls" ? "m3u8" : "mp4",
+        provider: provider, language: language || "multi",
+        headers: {}, subtitles: subtitles, anilistId: id, episodeNumber: ep
+      };
+    }).filter(Boolean);
+  } catch (error) {
+    console.log("[" + provider + "] native WebView resolution failed: " + String(error && error.message || error));
+    return [];
+  }
+}
+
 function acCtx(){return (globalThis&&globalThis.__CALL_ARGS__)||{};}
 async function acFetch(url,opt,ms){var c;var r=await Promise.race([fetch(url,opt||{}),new Promise(function(_,rej){c=setTimeout(function(){rej(new Error("AniChan timeout"));},ms||10000);})]).finally(function(){clearTimeout(c);});if(!r||!r.ok)throw new Error("AniChan HTTP "+(r?r.status:"network"));return r;}
 async function acJson(url,opt){return (await acFetch(url,opt)).json();}
@@ -36,7 +86,15 @@ async function getStreams(anilistId,mediaType,season,episode,extra){
     if(stream&&String(s.type||"hls").toLowerCase()==="hls")out=out.concat(await acHls(stream,label, "hls",{"Referer":AC_BASE+"/"},subs,id,ep));
     else if(stream&&/\.(mp4|mkv)(?:$|\?)/i.test(stream)){var c=acCandidate(stream,label,"Auto",/\.mkv/i.test(stream)?"mkv":"mp4",kind,{"Referer":AC_BASE+"/"},subs,id,ep);if(c)out.push(c);}
     // Embed URLs are not passed to MPV. Only expose a direct media URL discoverable in public HTML.
-    else if(s.embed){try{var html=await(await acFetch(acAbs(AC_BASE,s.embed),{headers:{"Referer":AC_BASE+"/"}},8000)).text();var m=html.match(/https?:\\?\/\\?\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?/i);if(m)out=out.concat(await acHls(m[0].replace(/\\\//g,"/"),label,kind,{"Referer":acAbs(AC_BASE,s.embed)},subs,id,ep));}catch(_){}}
+    else if(s.embed){
+     var embed=acAbs(AC_BASE,s.embed), directFound=false;
+     try {
+      var html=await(await acFetch(embed,{headers:{"Referer":AC_BASE+"/"}},8000)).text();
+      var m=html.match(/https?:\\?\/\\?\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?/i);
+      if(m){out=out.concat(await acHls(m[0].replace(/\\\//g,"/"),label,kind,{"Referer":embed},subs,id,ep));directFound=true;}
+     } catch(_) {}
+     if(!directFound) out=out.concat(await rawResolveUniversalEmbed(AC_ID,embed,label,kind,id,ep,AC_BASE+"/",{"Accept":"text/html,application/xhtml+xml,*/*"},subs));
+    }
    }
    if(out.length)break;
   }
