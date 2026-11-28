@@ -369,12 +369,13 @@ async function awProxyCandidate(url,server,referer,context,subtitles,options) {
   var type=options.type||"m3u8";
   var headers={"User-Agent":ANIWAVE_UA,"Referer":referer,"Origin":referer.replace(/\/$/,"")};
   var proxyUrl=url;
-  if (type==="m3u8" || options.proxyRequired || options.stripMode) {
+  var requiresNativeProxy=options.proxyRequired===true || options.stripMode==="png-webp" || options.stripMode==="image-to-ts";
+  if (type==="m3u8" || requiresNativeProxy) {
     proxyUrl=awProxy(url,headers,{
-      rewriteManifests:true,
-      stripMode:options.stripMode || "image-to-ts",
+      rewriteManifests:type==="m3u8",
+      stripMode:requiresNativeProxy ? (options.stripMode || "image-to-ts") : "none",
       xorOnlyWhenStripped:true,
-      forceSegmentContentType:true,
+      forceSegmentContentType:requiresNativeProxy,
       sessionTtlMillis:7200000
     });
   }
