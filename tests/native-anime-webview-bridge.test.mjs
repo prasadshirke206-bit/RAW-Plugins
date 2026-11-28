@@ -54,6 +54,7 @@ test("native bridge helper preserves exact AniList episode and strips unsafe req
       episodeNumber: 7,
       streams: [
         { url: "http://127.0.0.1:42000/raw-anime/abcdef0123456789?u=x", protocol: "hls" },
+        { url: "http://127.0.0.1:42000/raw-anime/abcdef0123456789/dash/0123456789abcdef?p0=7", protocol: "dash" },
         { url: "https://cdn.example/unproxied.m3u8", protocol: "hls" },
         { url: "http://127.0.0.1:42000/other-path?u=x", protocol: "hls" },
         { url: "http://127.0.0.1:42000/raw-anime/abcdef0123456789?u=y", protocol: "dash" }
@@ -80,11 +81,13 @@ test("native bridge helper preserves exact AniList episode and strips unsafe req
   assert.deepEqual(JSON.parse(JSON.stringify(captured.headers)), {
     "User-Agent": "RAW-test-UA", "Accept": "text/html"
   });
-  assert.equal(result.length, 1);
+  assert.equal(result.length, 2);
   assert.equal(result[0].url, "http://127.0.0.1:42000/raw-anime/abcdef0123456789?u=x");
   assert.equal(result[0].type, "m3u8");
-  assert.equal(result[0].anilistId, "16498");
-  assert.equal(result[0].episodeNumber, 7);
+  assert.equal(result[1].url, "http://127.0.0.1:42000/raw-anime/abcdef0123456789/dash/0123456789abcdef?p0=7");
+  assert.equal(result[1].type, "mpd");
+  assert.equal(result[1].anilistId, "16498");
+  assert.equal(result[1].episodeNumber, 7);
   assert.equal(result[0].subtitles.length, 1);
   assert.equal(result[0].subtitles[0].lang, "English");
 });
