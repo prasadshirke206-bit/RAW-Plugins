@@ -16,6 +16,48 @@
  * returned; unresolved embed pages are never passed to MPV as media URLs.
  */
 var MIRURO_ID = "miruro";
+
+async function rawResolveUniversalEmbed(provider, embedUrl, label, language, anilistId, episodeNumber, pageUrl, headers, fallbackSubtitles) {
+  var host = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
+  if (!host || typeof host.resolveAnimeEmbed !== "function") return [];
+  var id = String(anilistId || ""), ep = Number(episodeNumber || 0);
+  if (!/^[1-9]\d*$/.test(id) || !Number.isFinite(ep) || ep <= 0 ||
+      !/^https:\/\//i.test(String(embedUrl || "")) || !/^https:\/\//i.test(String(pageUrl || ""))) return [];
+  var safeHeaders = {};
+  var allowed = ["user-agent", "accept", "accept-language", "origin"];
+  Object.keys(headers || {}).forEach(function (key) {
+    if (allowed.indexOf(String(key).toLowerCase()) >= 0) safeHeaders[key] = String(headers[key]);
+  });
+  try {
+    var result = await host.resolveAnimeEmbed({
+      capability: "raw.anime.webview-stream", version: 1, provider: provider,
+      anilistId: id, episodeNumber: ep, embedUrl: String(embedUrl), pageUrl: String(pageUrl),
+      headers: safeHeaders, timeoutMs: 15000
+    });
+    if (!result || result.status !== "resolved" || String(result.anilistId) !== id ||
+        Number(result.episodeNumber) !== ep || !Array.isArray(result.streams)) return [];
+    var subtitles = (Array.isArray(result.subtitles) ? result.subtitles : []).concat(
+      Array.isArray(fallbackSubtitles) ? fallbackSubtitles : []
+    ).filter(function (item) {
+      return item && /^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(String(item.url || ""));
+    });
+    return result.streams.map(function (stream) {
+      var url = String(stream && stream.url || "");
+      var protocol = String(stream && stream.protocol || "").toLowerCase();
+      if (!/^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(url) ||
+          (protocol !== "hls" && protocol !== "mp4")) return null;
+      var title = String(label || provider || "Anime stream");
+      return { name:title, title:title, url:url, quality:"Auto",
+        type:protocol === "hls" ? "m3u8" : "mp4", provider:provider,
+        language:language || "multi", headers:{}, subtitles:subtitles,
+        anilistId:id, episodeNumber:ep };
+    }).filter(Boolean);
+  } catch (error) {
+    console.log("[" + provider + "] native WebView resolution failed: " + String(error && error.message || error));
+    return [];
+  }
+}
+
 var MIRURO_MIRRORS = [
   "https://www.miruro.tv",
   "https://www.miruro.to",
@@ -395,17 +437,33 @@ function mrSubtitles(payload) {
     return result;
   }).filter(Boolean);
 }
-function mrCandidates(payload, subtype, episodeId, anilistId, env, base) {
+async function mrCandidates(payload, subtype, episodeId, anilistId, env, base, episodeNumber) {
   var source = mrParseSources(payload), subtitles = mrSubtitles(source), output = [];
   var list = Array.isArray(source.streams) ? source.streams : [];
   for (var i = 0; i < list.length; i++) {
     var stream = list[i] || {};
     if (stream.isActive === false || !/^https:\/\//i.test(String(stream.url || ""))) continue;
-    if (String(stream.type || "").toLowerCase() !== "hls") continue;
+    var streamType = String(stream.type || "").toLowerCase();
+    var language = String(subtype || "sub").toLowerCase();
+    if (streamType === "embed") {
+      var embedLabel = "Episode stream";
+      var embedQuality = mrQuality(stream);
+      if (embedQuality !== "Auto") embedLabel += " · " + embedQuality;
+      embedLabel += " · " + (language === "dub" ? "Dub" : language === "ssub" ? "Soft Sub" : "Sub");
+      if (stream.codec) embedLabel += " · " + String(stream.codec);
+      if (stream.audio) embedLabel += " · " + String(stream.audio);
+      if (stream.fansub) embedLabel += " · " + String(stream.fansub);
+      var native = await rawResolveUniversalEmbed(MIRURO_ID, stream.url, embedLabel, language,
+        anilistId, episodeNumber, base.replace(/\/+$/, "") + "/",
+        { "Accept": "text/html,application/xhtml+xml,*/*" }, subtitles);
+      output.push.apply(output, native);
+      continue;
+    }
+    if (streamType !== "hls") continue;
     var sourceReferer = String(stream.referer || "").trim() || env.refererOrigin || MIRURO_DEFAULTS.refererOrigin;
     var url = mrProxyUrl(stream.url, sourceReferer, episodeId, anilistId, env);
     if (!/^https:\/\//i.test(url)) continue;
-    var quality = mrQuality(stream), language = String(subtype || "sub").toLowerCase();
+    var quality = mrQuality(stream);
     var label = "Episode stream";
     if (quality !== "Auto") label += " · " + quality;
     label += " · " + (language === "dub" ? "Dub" : language === "ssub" ? "Soft Sub" : "Sub");
@@ -426,7 +484,7 @@ function mrCandidates(payload, subtype, episodeId, anilistId, env, base) {
       },
       subtitles: subtitles,
       anilistId: String(anilistId),
-      episodeNumber: Number(mrContext().episodeNumber || 0)
+      episodeNumber: Number(episodeNumber)
     });
   }
   return output;
@@ -451,7 +509,7 @@ async function mrResolveSources(base, env, episode, anilistId, preferredAudio) {
       });
       try {
         var json = await mrPipe(base, "sources", query, env);
-        var candidates = mrCandidates(json, subtype, episodeId, anilistId, env, base);
+        var candidates = await mrCandidates(json, subtype, episodeId, anilistId, env, base, Number(mrContext().episodeNumber || mrContext().episode || 0));
         for (var c = 0; c < candidates.length; c++) {
           if (!seen[candidates[c].url]) { seen[candidates[c].url] = true; result.push(candidates[c]); }
         }
