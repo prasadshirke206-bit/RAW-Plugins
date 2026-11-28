@@ -247,8 +247,9 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
               return /^https:\/\//i.test(u) ? { url: u, lang: s.label || "English" } : null;
             }).filter(Boolean);
             var local = [];
-            (data.sources || []).forEach(function (src) {
-              if (!src) return;
+            for (var sourceIndex = 0; sourceIndex < (data.sources || []).length; sourceIndex++) {
+              var src = data.sources[sourceIndex];
+              if (!src) continue;
               var rawUrl = String(src.url || "").trim();
               var embedUrl = String(src.embedUrl || "").trim();
               var isM3u8 = src.isM3U8 !== false;
@@ -308,7 +309,7 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
               if (embedUrl && /^https:\/\//i.test(embedUrl)) {
                 local.push({ _embed: embedUrl, _label: label, _lang: selectedLang });
               }
-            });
+            }
             return local;
           } catch (error) {
             console.log("[Anikage] source lookup failed: " + String(error && error.message || error));
