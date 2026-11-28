@@ -202,7 +202,13 @@ async function apResolveKwik(kwikUrl,quality,context,base) {
   var referer=kwikUrl;
   if(/\.m3u8(?:$|[?#])/i.test(streamUrl)){
     var headers={"User-Agent":String(context.kwikUserAgent||context.sessionUserAgent||context.userAgent||ANIMEPAHE_UA),"Referer":referer,"Origin":"https://kwik.cx"};
-    var local=apHlsProxy(streamUrl,headers,{rewriteManifests:true,forceSegmentContentType:true,sessionTtlMillis:7200000});
+    var local=apHlsProxy(streamUrl,headers,{
+      rewriteManifests:true,
+      forceSegmentContentType:true,
+      aes128HlsKeyRelay:true,
+      aes128HlsDecryptSegments:true,
+      sessionTtlMillis:7200000
+    });
     return {name:quality+" (HLS)",title:quality+" (HLS)",url:local,type:"m3u8",quality:quality,provider:ANIMEPAHE_ID,headers:headers,subtitles:[]};
   }
   return {name:quality,title:quality,url:streamUrl,type:/\.mp4(?:$|[?#])/i.test(streamUrl)?"mp4":"auto",quality:quality,provider:ANIMEPAHE_ID,headers:{"User-Agent":ANIMEPAHE_UA,"Referer":referer},subtitles:[]};
