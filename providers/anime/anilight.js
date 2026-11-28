@@ -157,7 +157,7 @@ async function alNativeWatchPlayer(watchUrl, lang, label, id, ep, providerId) {
       embedUrl: watchUrl,
       pageUrl: ANILIGHT_SITE + "/",
       headers: ANILIGHT_HEADERS,
-      timeoutMs: 1500
+      timeoutMs: 3500
     });
     if (!resolved || resolved.status !== "resolved" ||
         String(resolved.anilistId) !== String(id) ||
