@@ -1598,7 +1598,7 @@ var AM_ID="animostream",AM_BASE="https://www.animostream.xyz";
 
 async function rawResolveUniversalEmbed(provider, embedUrl, label, language, anilistId, episodeNumber, pageUrl, headers, fallbackSubtitles) {
   var host = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
-  if (!host || typeof host.resolveAnimeEmbed !== "function") return [];
+  if (!host || typeof host.resolveAnimeEmbed !== "function") { console.log("[" + provider + "] UniversalExtractor route requires a RAW host capability"); return []; }
   var id = String(anilistId || ""), ep = Number(episodeNumber || 0);
   if (!/^[1-9]\d*$/.test(id) || !Number.isFinite(ep) || ep <= 0 ||
       !/^https:\/\//i.test(String(embedUrl || "")) || !/^https:\/\//i.test(String(pageUrl || ""))) return [];
