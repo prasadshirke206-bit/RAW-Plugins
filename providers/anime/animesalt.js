@@ -1536,6 +1536,7 @@ async function getStreams(anilistId,mediaType,season,episode,extra){try{var c=Ob
    else if(/\.(?:m3u8|mp4|mkv)(?:$|\?)/i.test(embed))out.push({name:name,title:name,url:embed,quality:"Auto",type:/mp4/i.test(embed)?"mp4":/mkv/i.test(embed)?"mkv":"m3u8",provider:AZ_ID,language:lang,headers:{"Referer":page},subtitles:[],anilistId:id,episodeNumber:ep});
    else out=out.concat(await rawResolveUniversalEmbed(AZ_ID,embed,name,lang,id,ep,page,{"Accept":"text/html,application/xhtml+xml,*/*"},[]));
   }
+ }
  return out;}catch(e){console.log("[AnimeSalt] "+String(e&&e.message||e));return[];}}
 if(typeof globalThis!=="undefined")globalThis.getStreams=getStreams;
 if(typeof module!=="undefined"&&module.exports)module.exports={getStreams:getStreams};
