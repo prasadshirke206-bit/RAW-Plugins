@@ -1,6 +1,6 @@
 # RAW App: Anime Native WebView Stream Resolver
 
-**Status:** Proposed host capability contract  
+**Status:** Implemented in RAW application source; pending Android build and device playback verification  
 **Scope:** Anime provider embeds that require a real Android WebView to reveal media requests  
 **Reference implementation:** `extractors/universal-extractor/.../UniversalExtractor.kt`
 
@@ -197,3 +197,15 @@ Before marking this capability implemented, test at least:
 12. Real-device MPV startup, seeking, subtitle selection and sustained playback.
 
 Until the RAW Android app implements and tests this bridge, QuickJS providers must continue to return no candidate for UniversalExtractor-only embeds. Do not mark the related providers fully ported or remove their Kotlin sources.
+
+
+## Implementation status (November 28, 2026)
+
+The supplied RAW Android source implements this contract through `RawBrowserResolveBridge` and `HostFunctions`. The JavaScript-facing ABI is `RAW_HOST.resolveAnimeEmbed(request)`; the current plugin call context supplies the authoritative AniList ID and episode, which the host checks against every request and result. The native bridge reuses RAW's existing `RawBrowser`, captures observed media and subtitle requests, preserves observed session headers/cookies in RAW-owned local HLS/MP4 proxy sessions, and rejects detected verification pages with `needs_user_action`.
+
+The bridge is invoked only after the shared QuickJS `EmbedExtractor` has attempted its supported host-specific extraction. A native browser page is never emitted as a playable stream. Host-owned trusted HTML is a separate internal method used for Senshi's original vendor.js shell; provider JavaScript cannot submit arbitrary HTML or unrestricted scripts.
+
+The same RAW app source adds provider-scoped loopback transformations: Senshi's AES-256-GCM `EM3U8v1:` envelopes, nested HLS/audio URI rewriting and synthetic audio master; Re:ANIME's enc-dec manifest wrapper, token propagation and PNG/WebP header/XOR segment transform; and AniLight's clean-TS/interleaved image-junk detector path for the original `l` and `raye` servers.
+
+**Not yet verified:** Android Gradle compilation, WebView renderer lifecycle under device load, real-provider source availability, HLS/MP4 sustained playback, subtitles/audio switching, seeking, and MPV fallback. No provider is considered production-ready solely because the host ABI is present. Challenges, CAPTCHA, Turnstile, login, DRM and paywall flows are not bypassed.
+

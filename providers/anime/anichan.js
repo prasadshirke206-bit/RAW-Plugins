@@ -36,7 +36,18 @@ async function getStreams(anilistId,mediaType,season,episode,extra){
     if(stream&&String(s.type||"hls").toLowerCase()==="hls")out=out.concat(await acHls(stream,label, "hls",{"Referer":AC_BASE+"/"},subs,id,ep));
     else if(stream&&/\.(mp4|mkv)(?:$|\?)/i.test(stream)){var c=acCandidate(stream,label,"Auto",/\.mkv/i.test(stream)?"mkv":"mp4",kind,{"Referer":AC_BASE+"/"},subs,id,ep);if(c)out.push(c);}
     // Embed URLs are not passed to MPV. Only expose a direct media URL discoverable in public HTML.
-    else if(s.embed){try{var html=await(await acFetch(acAbs(AC_BASE,s.embed),{headers:{"Referer":AC_BASE+"/"}},8000)).text();var m=html.match(/https?:\\?\/\\?\/[^"'\\s]+\.m3u8(?:\?[^"'\\s]*)?/i);if(m)out=out.concat(await acHls(m[0].replace(/\\\//g,"/"),label,kind,{"Referer":acAbs(AC_BASE,s.embed)},subs,id,ep));}catch(_){}}
+    else if(s.embed){
+      var embedUrl=acAbs(AC_BASE,s.embed);
+      try{
+        var html=await(await acFetch(embedUrl,{headers:{"Referer":AC_BASE+"/"}},8000)).text();
+        var m=html.match(/https?:\/\/[^"'\s]+\.m3u8(?:\?[^"'\s]*)?/i);
+        if(m)out=out.concat(await acHls(m[0],label,kind,{"Referer":embedUrl},subs,id,ep));
+      }catch(_){}
+      if(!out.length){
+        var pending=acCandidate(embedUrl,label,"Auto","embed",kind,{"Referer":AC_BASE+"/"},subs,id,ep);
+        if(pending)out.push(pending);
+      }
+    }
    }
    if(out.length)break;
   }
