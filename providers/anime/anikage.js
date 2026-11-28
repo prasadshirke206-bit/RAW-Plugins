@@ -152,11 +152,23 @@ async function akResolveEmbed(label, embedUrl, lang) {
   if (/megaplay\.buzz|vidtube\.site/i.test(embedUrl)) {
     return await akMegaPlayVideos(label, embedUrl, lang);
   }
-  // These paths use CloudStream/Tachiyomi's native UniversalExtractor/WebView
-  // stack. QuickJS must fail closed until RAW exposes the equivalent host ABI.
+  // Original Kotlin sends these player pages through UniversalExtractor. RAW owns the
+  // equivalent short-lived Android WebView resolver; it returns only observed media requests.
   if (/flixcloud|rabbit|megacloud/i.test(embedUrl)) {
-    console.log("[Anikage] native UniversalExtractor route requires a RAW host capability");
-    return [];
+    var nativeHost = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
+    if (!nativeHost || typeof nativeHost.resolveAnimeEmbedCandidates !== "function") return [];
+    try {
+      return await nativeHost.resolveAnimeEmbedCandidates({
+        provider: ANIKAGE_ID,
+        embedUrl: embedUrl,
+        pageUrl: ANIKAGE_SITE + "/",
+        headers: ANIKAGE_HEADERS,
+        timeoutMs: 15000
+      }, label, lang);
+    } catch (error) {
+      console.log("[Anikage] RAW WebView resolver failed: " + String(error && error.message || error));
+      return [];
+    }
   }
   return await akVibePlayerVideos(label, embedUrl, lang);
 }
@@ -244,19 +256,25 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
               var isM3u8 = src.isM3U8 !== false;
               var full = rawUrl ? akResolveProxy(rawUrl, isM3u8, proxyBase) : "";
               var host = (full.match(/^https?:\/\/([^/]+)/i) || [,""])[1].toLowerCase();
-              if (["vivibebe.site", "echovideo.to", "krussdomi.com"].some(function (h) {
+              var requiresFakeImageRelay = ["vivibebe.site", "echovideo.to", "krussdomi.com"].some(function (h) {
                 return host === h || host.endsWith("." + h);
-              })) {
-                console.log("[Anikage] source requires native local HLS relay: " + host);
-                return;
-              }
+              });
               var displayLabel = embedUrl && labels[embedUrl] || src.server || src.quality || "Auto";
               var label = String(selectedServer.id).replace(/^./, function (c) { return c.toUpperCase(); }) +
                 " - " + selectedLang.toUpperCase() + " - " + displayLabel;
               var streamHeaders = Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" });
               if (full && /^https:\/\//i.test(full)) {
                 if (isM3u8) {
-                  local.push({ _url: full, _label: label, _lang: selectedLang, _subs: subtitles, _headers: streamHeaders });
+                  // These three upstreams disguise manifests/segments and require the native
+                  // RAW relay. The host verifies the destination against this provider's allowlist.
+                  if (requiresFakeImageRelay) {
+                    local.push({
+                      _forceHls: true, _url: full, _label: label, _lang: selectedLang,
+                      _subs: subtitles, _headers: streamHeaders
+                    });
+                  } else {
+                    local.push({ _url: full, _label: label, _lang: selectedLang, _subs: subtitles, _headers: streamHeaders });
+                  }
                 } else {
                   var direct = akCandidate(full, label, src.quality || "Auto", "mp4", selectedLang, subtitles, streamHeaders);
                   if (direct) local.push(direct);
@@ -286,6 +304,11 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
       if (entry._embed) return await akResolveEmbed(entry._label, entry._embed, entry._lang);
       if (!entry._url) return [entry];
       try {
+        if (entry._forceHls) {
+          var forced = akCandidate(entry._url, entry._label + " - Auto", "Auto", "m3u8",
+            entry._lang, entry._subs, entry._headers);
+          return forced ? [forced] : [];
+        }
         return await akHls(entry._url, entry._label, entry._lang, entry._subs, entry._headers);
       } catch (error) {
         console.log("[Anikage] HLS playlist failed: " + String(error && error.message || error));
