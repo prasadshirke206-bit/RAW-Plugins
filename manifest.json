@@ -825,8 +825,8 @@
     {
       "id": "senshi",
       "name": "Senshi",
-      "description": "Disabled: playback requires AES-GCM playlist handling plus a native stream proxy for segment/key requests; pending host support.",
-      "version": "1.0.0",
+      "description": "QuickJS port matches the Kotlin AniList title mapping, Senshi numeric anime/episode/embed API, and sub/dub source selection. It invokes RAW's native vendor.js __oct.open WebView bridge and the native EM3U8v1 AES-256-GCM HLS proxy for nested playlists and media segments; live device playback remains to be verified.",
+      "version": "1.1.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"
