@@ -255,16 +255,15 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
     });
     if (!Array.isArray(embeds)) return [];
 
-    var candidates = [];
-    for (var i = 0; i < embeds.length; i++) {
-      var embed = embeds[i] || {};
+    var tasks = embeds.slice(0, 8).map(async function (embed) {
+      embed = embed || {};
       var remoteId = Number(embed.remote_source_id);
-      if (!Number.isSafeInteger(remoteId) || remoteId <= 0) continue;
+      if (!Number.isSafeInteger(remoteId) || remoteId <= 0) return [];
       var audioBadge = String(embed.status || "HardSub").toLowerCase() === "dub" ? "Dub" : "Sub";
-      var resolved = await snResolveRemote(remoteId, audioBadge, id, ep, String(context.preferredQuality || "auto").toLowerCase());
-      candidates.push.apply(candidates, resolved);
-    }
-    return candidates;
+      return await snResolveRemote(remoteId, audioBadge, id, ep, String(context.preferredQuality || "auto").toLowerCase());
+    });
+    var resolved = await Promise.all(tasks);
+    return resolved.reduce(function (all, items) { return all.concat(items || []); }, []);
   } catch (error) {
     console.log("[Senshi] resolve failed: " + String(error && error.message || error));
     return [];
