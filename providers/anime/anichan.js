@@ -32,17 +32,17 @@ async function rawResolveUniversalEmbed(provider, embedUrl, label, language, ani
     var subtitles = (Array.isArray(result.subtitles) ? result.subtitles : []).concat(
       Array.isArray(fallbackSubtitles) ? fallbackSubtitles : []
     ).filter(function (item) {
-      return item && /^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(String(item.url || ""));
+      return item && /^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+(?:\/dash\/[a-f0-9]+)?\?/i.test(String(item.url || ""));
     });
     return result.streams.map(function (stream) {
       var url = String(stream && stream.url || "");
       var protocol = String(stream && stream.protocol || "").toLowerCase();
-      if (!/^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+\?/i.test(url) ||
-          (protocol !== "hls" && protocol !== "mp4")) return null;
+      if (!/^http:\/\/127\.0\.0\.1:\d+\/raw-anime\/[a-f0-9]+(?:\/dash\/[a-f0-9]+)?\?/i.test(url) ||
+          (protocol !== "hls" && protocol !== "dash" && protocol !== "mp4")) return null;
       var title = String(label || provider || "Anime stream");
       return {
         name: title, title: title, url: url, quality: "Auto",
-        type: protocol === "hls" ? "m3u8" : "mp4",
+        type: protocol === "hls" ? "m3u8" : protocol === "dash" ? "mpd" : "mp4",
         provider: provider, language: language || "multi",
         headers: {}, subtitles: subtitles, anilistId: id, episodeNumber: ep
       };
