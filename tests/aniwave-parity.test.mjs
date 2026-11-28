@@ -90,6 +90,7 @@ test("AniWave eight-stage VRF matches Kotlin and remains distinct from Anikoto/S
 
 test("AniWave maps the exact AniList episode, applies its VRF, and resolves the requested HTML server", async () => {
   const holder = {};
+  let proxyIndex = 0;
   const { exports, calls, proxyCalls } = loadProvider(async (url, init = {}) => {
     if (url === "https://animewave.to/filter?keyword=Wave%20Fixture&page=1&vrf=" + holder.vrf) {
       return response('<div class="ani items"><div class="item"><a class="name" href="/watch/wave-fixture">Wave Fixture</a></div></div>', { url });
