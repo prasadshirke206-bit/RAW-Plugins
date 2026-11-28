@@ -161,6 +161,7 @@ test("AniWave maps the exact AniList episode, applies its VRF, and resolves the 
   assert.ok(!calls.some((call) => call.url.includes("servers=old-server")));
   assert.ok(proxyCalls.some((call) => call.options.stripMode === "png-webp"));
   assert.ok(proxyCalls.some((call) => call.options.stripMode === "image-to-ts"));
+  assert.ok(candidates.some((candidate) => candidate.subtitles.length === 1));
 });
 
 test("AniWave getSources retries new endpoint/CDN selector and decodes an AES-CBC MegaPlay enc payload", async () => {
