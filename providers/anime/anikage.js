@@ -155,8 +155,18 @@ async function akResolveEmbed(label, embedUrl, lang) {
   // These paths use CloudStream/Tachiyomi's native UniversalExtractor/WebView
   // stack. QuickJS must fail closed until RAW exposes the equivalent host ABI.
   if (/flixcloud|rabbit|megacloud/i.test(embedUrl)) {
-    console.log("[Anikage] native UniversalExtractor route requires a RAW host capability");
-    return [];
+    // Preserve the original Kotlin UniversalExtractor route. RAW's Android host
+    // loads this page in its isolated WebView and captures only observed media URLs.
+    var nativeEmbed = akCandidate(
+      embedUrl,
+      label + " - Browser",
+      "Auto",
+      "embed",
+      lang,
+      Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" }),
+      []
+    );
+    return nativeEmbed ? [nativeEmbed] : [];
   }
   return await akVibePlayerVideos(label, embedUrl, lang);
 }
@@ -244,17 +254,50 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
               var isM3u8 = src.isM3U8 !== false;
               var full = rawUrl ? akResolveProxy(rawUrl, isM3u8, proxyBase) : "";
               var host = (full.match(/^https?:\/\/([^/]+)/i) || [,""])[1].toLowerCase();
-              if (["vivibebe.site", "echovideo.to", "krussdomi.com"].some(function (h) {
-                return host === h || host.endsWith("." + h);
-              })) {
-                console.log("[Anikage] source requires native local HLS relay: " + host);
-                return;
-              }
               var displayLabel = embedUrl && labels[embedUrl] || src.server || src.quality || "Auto";
               var label = String(selectedServer.id).replace(/^./, function (c) { return c.toUpperCase(); }) +
                 " - " + selectedLang.toUpperCase() + " - " + displayLabel;
               var streamHeaders = Object.assign({}, ANIKAGE_HEADERS, { "Referer": ANIKAGE_SITE + "/" });
+              var requiresNativeRelay = ["vivibebe.site", "echovideo.to", "krussdomi.com"].some(function (h) {
+                return host === h || host.endsWith("." + h);
+              });
               if (full && /^https:\/\//i.test(full)) {
+                if (isM3u8 && requiresNativeRelay) {
+                  // The original Kotlin path uses M3u8ServerManager for these hosts.
+                  // RAW owns the relay so cookies/headers and nested HLS resources survive.
+                  try {
+                    if (typeof RAW_HOST !== "undefined" && RAW_HOST &&
+                        typeof RAW_HOST.proxyAnimeMedia === "function") {
+                      var relay = await RAW_HOST.proxyAnimeMedia({
+                        provider: ANIKAGE_ID,
+                        anilistId: id,
+                        episodeNumber: ep,
+                        url: full,
+                        protocol: "hls",
+                        pageUrl: ANIKAGE_SITE + "/",
+                        headers: streamHeaders
+                      });
+                      if (relay && relay.status === "resolved" && relay.url) {
+                        local.push({
+                          name: label,
+                          title: label,
+                          url: relay.url,
+                          quality: "Auto",
+                          type: "m3u8",
+                          provider: ANIKAGE_ID,
+                          language: selectedLang,
+                          headers: {},
+                          subtitles: subtitles,
+                          anilistId: id,
+                          episodeNumber: ep
+                        });
+                      }
+                    }
+                  } catch (relayError) {
+                    console.log("[Anikage] native HLS relay failed: " + String(relayError && relayError.message || relayError));
+                  }
+                  return local;
+                }
                 if (isM3u8) {
                   local.push({ _url: full, _label: label, _lang: selectedLang, _subs: subtitles, _headers: streamHeaders });
                 } else {
