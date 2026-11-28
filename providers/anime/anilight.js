@@ -144,12 +144,14 @@ async function alMegaPlay(embedUrl, lang, label) {
   var audioBadge = lang === "dub" ? "[Dub]" : (tracks.length ? "[Soft Sub]" : "[Sub]");
   return await alHls(file, audioBadge, lang, embedHeaders, tracks);
 }
-async function alNativeWatchPlayer(watchUrl, lang, label, id, ep) {
+async function alNativeWatchPlayer(watchUrl, lang, label, id, ep, providerId) {
   try {
     var host = typeof globalThis !== "undefined" ? globalThis.RAW_HOST : null;
     if (!host || typeof host.resolveAnimeEmbed !== "function") return [];
     var resolved = await host.resolveAnimeEmbed({
       provider: ANILIGHT_ID,
+      providerServer: String(providerId || "").toLowerCase(),
+      proxyProfile: ["l", "raye"].indexOf(String(providerId || "").toLowerCase()) >= 0 ? "anilight-interleaved-ts" : "",
       anilistId: String(id),
       episodeNumber: Number(ep),
       embedUrl: watchUrl,
@@ -298,7 +300,8 @@ async function getStreams(anilistId, mediaType, season, episode, extraArgs) {
             lang,
             "Episode " + ep + " · " + providerId + (lang === "dub" ? " [Dub]" : " [Sub]"),
             id,
-            ep
+            ep,
+            providerId
           );
           if (browserStreams.length) out = out.concat(browserStreams);
         }
