@@ -110,7 +110,7 @@ test("native bridge helper rejects identity mismatches and verification-required
 test("native bridge helper does not invoke RAW for non-HTTPS embed or page URLs", async () => {
   let calls = 0;
   const resolve = createHelper(async () => { calls++; return { status: "resolved", streams: [] }; });
-  assert.deepEqual(await resolve("anikage", "http://embed.example/e", "label", "sub", "16498", 4, "https://anikage.cc/", {}, []), []);
-  assert.deepEqual(await resolve("anikage", "https://embed.example/e", "label", "sub", "16498", 4, "http://anikage.cc/", {}, []), []);
+  assert.equal((await resolve("anikage", "http://embed.example/e", "label", "sub", "16498", 4, "https://anikage.cc/", {}, [])).length, 0);
+  assert.equal((await resolve("anikage", "https://embed.example/e", "label", "sub", "16498", 4, "http://anikage.cc/", {}, [])).length, 0);
   assert.equal(calls, 0);
 });
