@@ -57,7 +57,7 @@ test("native bridge helper preserves exact AniList episode and strips unsafe req
         { url: "http://127.0.0.1:42000/raw-anime/abcdef0123456789/dash/0123456789abcdef?p0=7", protocol: "dash" },
         { url: "https://cdn.example/unproxied.m3u8", protocol: "hls" },
         { url: "http://127.0.0.1:42000/other-path?u=x", protocol: "hls" },
-        { url: "http://127.0.0.1:42000/raw-anime/abcdef0123456789?u=y", protocol: "dash" }
+        { url: "http://127.0.0.1:42000/raw-anime/abcdef0123456789/not-dash/0123456789abcdef?p0=7", protocol: "dash" }
       ],
       subtitles: [
         { url: "http://127.0.0.1:42000/raw-anime/abcdef0123456789?u=sub", lang: "English", format: "vtt" },
