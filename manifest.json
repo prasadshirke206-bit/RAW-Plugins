@@ -780,8 +780,8 @@
     {
       "id": "aniwave",
       "name": "AniWave",
-      "description": "Disabled: depends on the upstream VRF/extractor chain and native HLS proxy; pending a host capability for those dependencies.",
-      "version": "1.0.0",
+      "description": "QuickJS port implements the Kotlin eight-stage AniWave VRF, exact episode/server APIs, optional mapper server discovery, player/iframe extraction, getSources/getSourcesNew CDN fallback, AES-CBC MegaPlay source decoding and MewCDN fragment handling. RAW native HLS proxy performs playlist/key rewriting and image-to-TS/PNG-WebP segment cleanup. Full settings/discovered-host persistence and Android/MPV live playback remain unverified.",
+      "version": "1.1.0",
       "author": "Unfiltered Raw",
       "supportedTypes": [
         "anime"

@@ -41,6 +41,7 @@ The branch CI run for commit `5401673698523b5714ce80c342274d3d0f3d51aa` passes `
 | AnimeSuge | PORTED_WITH_GAPS | JS now ports the Kotlin RC4 → Base64URL → cyclic byte-shift → Base64URL → ROT13 VRF, exact-title search, site ID and `data-ids` episode selection, server lookup, and observed direct HLS/MegaPlay resolution with mocked fixtures. The full AnikotoTheme extractor set, native playlist/key proxy, metadata preferences and real-device playback are not yet verified. |
 | Senshi | PORTED_WITH_NATIVE_BRIDGE | JS mirrors the Kotlin AniList search → numeric anime ID → exact episode → remote embed ID flow, then calls RAW's native Senshi WebView bridge (`vendor.js` / `window.__oct.open`) with the Kotlin public endpoint fallback. Native loopback proxy decrypts `EM3U8v1:` AES-256-GCM master and child playlists, rewrites media/audio/key URIs, and normalizes image-labelled chunks to MPEG-TS. Android/MPV live playback, user-agent/session compatibility and endpoint availability remain unverified. |
 | ReAnime | PORTED_WITH_NATIVE_BRIDGE | JS matches the Kotlin AniList/search/detail/episode/FlixCloud flow, exact AniList metadata binding, JSON5 embed extraction, dynamic/fallback 16-byte XOR mask, enc-dec token/stream exchanges and subtitle tracks. It creates RAW-owned sessions using the Kotlin FlixProxy manifest wrapper, token inheritance, PNG/WebP header stripping and XOR-after-header rule. Real device playback, native playlist/token behavior against the live site, preferences and skip-time metadata remain unverified. |
+| AniWave | PORTED_WITH_NATIVE_BRIDGE | JS ports the exact eight-stage Kotlin exchange/RC4/reverse/Base64 URL-encoded VRF, exact AniList title and episode binding, selected episode IDs/metadata, HTML server IDs, optional mapper links, dual `getSources`/`getSourcesNew` CDN fallback with retry and `s` selector, AES-CBC MegaPlay `enc` source, iframe recursion and MewCDN fragment/host-map route. RAW native proxy rewrites playlists/key/audio URIs and strips image/junk wrappers from segments. Persisted host/type discovery, full AniWave preference controls, all provider-specific extractor edge cases and Android/MPV live playback remain unverified. |
 | AnimeHeaven | CLOSE_PENDING_DEVICE_TEST | The JS port reproduces the gate-key cookie request and the three direct-media discovery fallbacks (video source, download link, token reconstruction), while excluding the decoy host. It still needs comparison fixtures for cookie isolation, URL ordering, and request headers, plus device validation. |
 | Ani.pm | PORTED_WITH_GAPS | JS reproduces playback bootstrap → Settlar session → embed session, key-proof header, subtitle extraction, and HLS parsing. Kotlin additionally sends videos and subtitle tracks through its local proxy; encrypted-key/playlist behavior must be proven equivalent or implemented natively. |
 | AniSnatch | PORTED_WITH_GAPS | JS now loads the live site crypto config, ports Kotlin's SMC request encoding, shuffled 25-character chunks, token/authenticator construction, marker/XOR/gzip response decoder, exact AniList-title mapping, episode/server APIs, and visible direct HLS/MP4/MegaPlay source extraction with mocked fixtures. Kotlin's PlaylistUtils/M3u8Integration segment/key rewriting, the full extractor fallback set, server preferences and real-device playback remain incomplete. |
@@ -55,13 +56,13 @@ The branch CI run for commit `5401673698523b5714ce80c342274d3d0f3d51aa` passes `
 
 ## Disabled providers
 
-These four entries remain catalogue-enabled by user decision but are still implementation-blocked. Their Kotlin source must remain available until each missing flow has a legitimate, tested QuickJS or RAW-native implementation.
+These three entries remain catalogue-enabled by user decision but are still implementation-blocked. Their Kotlin source must remain available until each missing flow has a legitimate, tested QuickJS or RAW-native implementation.
 
 | Provider | Status | Blocking Kotlin behavior |
 |---|---|---|
 | AniLab | BLOCKED | Kyoto Player official-client request signing. Do not synthesize or impersonate the official signature. |
 | AnimePahe | BLOCKED | Cloudflare/session flow, native HLS server, Kwik extractor, and supporting session logic. |
-| AniWave | BLOCKED | VRF/extractor chain and native HLS proxy. |
+
 | AV1Encodes | BLOCKED | Site verification/ad-check flow and native extractor dependencies. |
 
 
