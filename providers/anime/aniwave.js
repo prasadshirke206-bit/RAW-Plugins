@@ -54,8 +54,9 @@ async function awFetch(url, headers, method, body) {
 async function awText(url, headers, method, body) {
   return await (await awFetch(url, headers, method, body)).text();
 }
-async function awJson(url, headers) {
-  return await (await awFetch(url, headers)).json();
+async function awJson(url, headers, method, body) {
+  var response = await awFetch(url, headers, method, body);
+  return await response.json();
 }
 function awBase64Url(bytes) {
   var binary = "";
@@ -435,7 +436,13 @@ async function getStreams(anilistId,mediaType,season,episode,extraArgs) {
     for(var e=0;e<tags.length;e++) if(Number(awAttr(tags[e],"data-num"))===ep){selected=tags[e];break;}
     if(!selected) return [];
     var ids=awAttr(selected,"data-ids");
+    var malId=awAttr(selected,"data-mal");
+    var slug=awAttr(selected,"data-slug");
+    var ts=awAttr(selected,"data-timestamp");
     var epUrlPart=(watch.replace(/^https?:\/\/[^/]+/i,"").replace(/\/+$/,""))+"/ep-"+ep;
+    if(malId) epUrlPart += (epUrlPart.indexOf("?") >= 0 ? "&" : "?") + "mal=" + encodeURIComponent(malId);
+    if(slug) epUrlPart += (epUrlPart.indexOf("?") >= 0 ? "&" : "?") + "slug=" + encodeURIComponent(slug);
+    if(ts) epUrlPart += (epUrlPart.indexOf("?") >= 0 ? "&" : "?") + "ts=" + encodeURIComponent(ts);
     var serverList=await awEpisodeServers(base,ids,epUrlPart,context);
     var preferred=String(context.preferredServer||"");
     serverList.sort(function(a,b){return Number(String(b.serverName).toLowerCase()===preferred.toLowerCase())-Number(String(a.serverName).toLowerCase()===preferred.toLowerCase());});
