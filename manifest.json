@@ -235,7 +235,7 @@
     {
       "id": "net77",
       "name": "NetMirror (Net77)",
-      "description": "Disabled pending a legitimate RAW host handoff for user-completed NetMirror verification. The synthetic reCAPTCHA response path is not used; automated challenge solving is not supported.",
+      "description": "Catalogue-enabled; playback requires a legitimate RAW host handoff for user-completed NetMirror verification. The synthetic reCAPTCHA response path is not used; automated challenge solving is not supported.",
       "version": "1.0.1",
       "author": "Secondary Agent",
       "supportedTypes": [
