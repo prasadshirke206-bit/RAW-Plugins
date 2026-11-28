@@ -153,6 +153,10 @@ test("ReAnime follows AniList → exact episode → FlixCloud token/stream and R
   assert.equal(candidate.episodeNumber, 5);
   assert.equal(candidate.type, "m3u8");
   assert.equal(candidate.quality, "Auto");
+  assert.equal(candidate.introStart, 3);
+  assert.equal(candidate.introEnd, 87);
+  assert.equal(candidate.outroStart, 120);
+  assert.equal(candidate.outroEnd, 180);
   assert.ok(candidate.url.startsWith("http://127.0.0.1:43522/hls/reanime"));
   assert.equal(candidate.subtitles.length, 1);
   assert.ok(candidate.subtitles[0].url.startsWith("http://127.0.0.1:43522/hls/reanime"));
