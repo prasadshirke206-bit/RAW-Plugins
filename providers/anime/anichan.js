@@ -40,8 +40,8 @@ async function getStreams(anilistId,mediaType,season,episode,extra){
       var embedUrl=acAbs(AC_BASE,s.embed);
       try{
         var html=await(await acFetch(embedUrl,{headers:{"Referer":AC_BASE+"/"}},8000)).text();
-        var m=html.match(/https?:\\?\\/\\?\\/[^"'\\s]+\\.m3u8(?:\\?[^"'\\s]*)?/i);
-        if(m)out=out.concat(await acHls(m[0].replace(/\\\\\\//g,"/"),label,kind,{"Referer":embedUrl},subs,id,ep));
+        var m=html.match(/https?:\/\/[^"'\s]+\.m3u8(?:\?[^"'\s]*)?/i);
+        if(m)out=out.concat(await acHls(m[0],label,kind,{"Referer":embedUrl},subs,id,ep));
       }catch(_){}
       if(!out.length){
         var pending=acCandidate(embedUrl,label,"Auto","embed",kind,{"Referer":AC_BASE+"/"},subs,id,ep);
